@@ -1,0 +1,15 @@
+{
+  "network": "sepolia",
+  "chainId": 11155111,
+  "contracts": {
+    "YieldMaxVault": "0x09c4e48151C29774aD2F83853dA71E66b8aA8719"
+  },
+  "configuration": {
+    "usdc": "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
+    "deployer": "0x1Ae0947c15b5d9dc74ad69E07A82725E71740603",
+    "owner": "0x1Ae0947c15b5d9dc74ad69E07A82725E71740603",
+    "keeper": "0x1Ae0947c15b5d9dc74ad69E07A82725E71740603"
+  },
+  "timestamp": "2025-06-10T14:10:50.724Z",
+  "blockNumber": 8518716
+}

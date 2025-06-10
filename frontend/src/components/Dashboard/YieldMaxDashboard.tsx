@@ -5,6 +5,20 @@ import { useRealTimeData } from '@/hooks/useRealTimeData';
 import { formatCurrency, formatPercentage } from '@/utils/format';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 
+import { useYieldMaxVault } from '../hooks/useYieldMaxVault';
+
+export const Dashboard = () => {
+  const { totalAssets, currentAPY } = useYieldMaxVault();
+  
+  return (
+    <div>
+      <h2>YieldMax Protocol Stats</h2>
+      <div>Total Value Locked: ${totalAssets} USDC</div>
+      <div>Current APY: {currentAPY}%</div>
+    </div>
+  );
+};
+
 const DashboardContainer = styled.div`
   min-height: 100vh;
   background: #09090B;

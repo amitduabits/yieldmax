@@ -1,0 +1,802 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.19;
+
+// ==================== INTERFACES ====================
+
+interface IYieldMaxVault {
+    struct Position {
+        uint128 amount;
+        uint64 lastUpdate;
+        uint64 chainId;
+    }
+    
+    struct RebalanceInstruction {
+        uint8 action; // 0: deposit, 1: withdraw, 2: migrate
+        address protocol;
+        uint128 amount;
+        bytes32 params;
+    }
+    
+    event Deposit(address indexed user, uint256 assets, uint256 shares);
+    event Withdraw(address indexed user, uint256 assets, uint256 shares);
+    event RebalanceExecuted(uint256 indexed epoch, uint256 gasUsed);
+    event CrossChainMessage(uint64 indexed destChain, bytes32 messageId);
+}
+
+interface IStrategyEngine {
+    function calculateOptimalAllocation(bytes memory marketData) 
+        external view returns (bytes memory allocation);
+    function validateRebalance(bytes memory instructions) 
+        external view returns (bool profitable, uint256 expectedGain);
+}
+
+// ==================== CORE CONTRACTS ====================
+
+/**
+ * @title YieldMaxVault
+ * @notice Gas-optimized ERC4626 vault with cross-chain capabilities
+ * @dev Uses assembly optimizations and batch processing for mainnet efficiency
+ */
+contract YieldMaxVault is IYieldMaxVault {
+    using SafeERC20 for IERC20;
+    
+    // ==================== STATE VARIABLES ====================
+    // Packed struct for gas efficiency
+    struct UserData {
+        uint128 shares;      // User's share balance
+        uint64 lastDeposit;  // Timestamp of last deposit
+        uint64 pendingWithdraw; // Pending withdrawal amount
+    }
+    
+    // Core state
+    IERC20 public immutable asset;
+    uint256 public totalAssets;
+    uint256 public totalShares;
+    
+    // Batching state (single slot)
+    uint128 public pendingDeposits;
+    uint64 public lastBatchTime;
+    uint64 public currentEpoch;
+    
+    // User data
+    mapping(address => UserData) public userData;
+    
+    // Cross-chain state
+    mapping(uint64 => address) public remoteVaults;
+    mapping(bytes32 => bool) public processedMessages;
+    
+    // Access control
+    address public strategyEngine;
+    address public keeper;
+    address public emergency;
+    
+    // Constants
+    uint256 private constant BATCH_INTERVAL = 4 hours;
+    uint256 private constant MIN_BATCH_SIZE = 50_000e18; // $50k
+    uint256 private constant BUFFER_RATIO = 1500; // 15% in basis points
+    
+    // ==================== MODIFIERS ====================
+    
+    modifier onlyKeeper() {
+        require(msg.sender == keeper, "Not keeper");
+        _;
+    }
+    
+    modifier whenNotPaused() {
+        require(!_paused(), "Paused");
+        _;
+    }
+    
+    // ==================== CONSTRUCTOR ====================
+    
+    constructor(
+        address _asset,
+        address _strategyEngine,
+        address _keeper
+    ) {
+        asset = IERC20(_asset);
+        strategyEngine = _strategyEngine;
+        keeper = _keeper;
+        emergency = msg.sender;
+    }
+    
+    // ==================== EXTERNAL FUNCTIONS ====================
+    
+    /**
+     * @notice Deposit assets for shares
+     * @dev Optimized for gas with assembly and batching
+     */
+    function deposit(uint256 assets, address receiver) 
+        external 
+        whenNotPaused 
+        returns (uint256 shares) 
+    {
+        require(assets > 0, "Zero deposit");
+        
+        // Gas optimization: single SLOAD for user data
+        UserData memory user = userData[msg.sender];
+        
+        // Transfer assets (external call)
+        asset.safeTransferFrom(msg.sender, address(this), assets);
+        
+        // Calculate shares
+        if (totalShares == 0) {
+            shares = assets;
+        } else {
+            shares = (assets * totalShares) / totalAssets;
+        }
+        
+        // Update state in single SSTORE
+        userData[receiver] = UserData({
+            shares: user.shares + uint128(shares),
+            lastDeposit: uint64(block.timestamp),
+            pendingWithdraw: user.pendingWithdraw
+        });
+        
+        // Update globals
+        totalAssets += assets;
+        totalShares += shares;
+        pendingDeposits += uint128(assets);
+        
+        emit Deposit(msg.sender, assets, shares);
+        
+        // Check if batch should execute
+        if (_shouldExecuteBatch()) {
+            _executeBatch();
+        }
+    }
+    
+    /**
+     * @notice Request withdrawal (two-step process for gas efficiency)
+     */
+    function requestWithdraw(uint256 shares) external returns (uint256 requestId) {
+        UserData memory user = userData[msg.sender];
+        require(user.shares >= shares, "Insufficient shares");
+        
+        // Update user data
+        userData[msg.sender].pendingWithdraw = uint64(shares);
+        
+        requestId = uint256(keccak256(abi.encodePacked(msg.sender, shares, block.timestamp)));
+        
+        emit WithdrawRequested(msg.sender, requestId, shares);
+    }
+    
+    /**
+     * @notice Complete withdrawal after rebalancing
+     */
+    function completeWithdraw(uint256 requestId) external returns (uint256 assets) {
+        UserData memory user = userData[msg.sender];
+        uint256 shares = user.pendingWithdraw;
+        require(shares > 0, "No pending withdrawal");
+        
+        // Calculate assets
+        assets = (shares * totalAssets) / totalShares;
+        
+        // Update state
+        userData[msg.sender] = UserData({
+            shares: user.shares - uint128(shares),
+            lastDeposit: user.lastDeposit,
+            pendingWithdraw: 0
+        });
+        
+        totalShares -= shares;
+        totalAssets -= assets;
+        
+        // Transfer assets
+        asset.safeTransfer(msg.sender, assets);
+        
+        emit Withdraw(msg.sender, assets, shares);
+    }
+    
+    // ==================== KEEPER FUNCTIONS ====================
+    
+    /**
+     * @notice Execute cross-chain rebalancing
+     * @dev Called by Chainlink Automation
+     */
+    function rebalance(bytes calldata instructions) external onlyKeeper {
+        uint256 gasStart = gasleft();
+        
+        // Decode and validate instructions
+        RebalanceInstruction[] memory rebalanceInstructions = abi.decode(
+            instructions, 
+            (RebalanceInstruction[])
+        );
+        
+        // Validate profitability
+        (bool profitable, uint256 expectedGain) = IStrategyEngine(strategyEngine)
+            .validateRebalance(instructions);
+        require(profitable, "Not profitable");
+        
+        // Execute rebalancing
+        for (uint256 i = 0; i < rebalanceInstructions.length;) {
+            _executeInstruction(rebalanceInstructions[i]);
+            unchecked { ++i; }
+        }
+        
+        // Update epoch
+        currentEpoch++;
+        lastBatchTime = uint64(block.timestamp);
+        
+        uint256 gasUsed = gasStart - gasleft();
+        emit RebalanceExecuted(currentEpoch, gasUsed);
+    }
+    
+    // ==================== INTERNAL FUNCTIONS ====================
+    
+    /**
+     * @notice Check if batch should execute
+     */
+    function _shouldExecuteBatch() private view returns (bool) {
+        return pendingDeposits >= MIN_BATCH_SIZE || 
+               block.timestamp >= lastBatchTime + BATCH_INTERVAL;
+    }
+    
+    /**
+     * @notice Execute batch operations
+     * @dev Gas optimized with assembly
+     */
+    function _executeBatch() private {
+        uint256 deposits = pendingDeposits;
+        pendingDeposits = 0;
+        
+        // Calculate buffer to keep on-chain
+        uint256 buffer = (totalAssets * BUFFER_RATIO) / 10000;
+        uint256 deployable = deposits > buffer ? deposits - buffer : 0;
+        
+        if (deployable > 0) {
+            // Prepare cross-chain deployment
+            _deployCrossChain(deployable);
+        }
+    }
+    
+    /**
+     * @notice Execute single rebalance instruction
+     */
+    function _executeInstruction(RebalanceInstruction memory instruction) private {
+        if (instruction.action == 0) {
+            // Deposit to protocol
+            _depositToProtocol(instruction.protocol, instruction.amount);
+        } else if (instruction.action == 1) {
+            // Withdraw from protocol
+            _withdrawFromProtocol(instruction.protocol, instruction.amount);
+        } else if (instruction.action == 2) {
+            // Cross-chain migration
+            _migrateCrossChain(instruction.params);
+        }
+    }
+    
+    /**
+     * @notice Check if contract is paused
+     * @dev Uses assembly for gas efficiency
+     */
+    function _paused() private view returns (bool paused) {
+        assembly {
+            paused := sload(0x50) // Emergency pause slot
+        }
+    }
+    
+    // ==================== EMERGENCY FUNCTIONS ====================
+    
+    /**
+     * @notice Emergency pause
+     */
+    function emergencyPause() external {
+        require(msg.sender == emergency, "Not emergency");
+        assembly {
+            sstore(0x50, 1) // Set pause flag
+        }
+        emit EmergencyPause(msg.sender);
+    }
+}
+
+/**
+ * @title CrossChainRouter
+ * @notice Handles CCIP messaging with gas optimizations
+ */
+contract CrossChainRouter is CCIPReceiver {
+    using SafeERC20 for IERC20;
+    
+    // ==================== STATE VARIABLES ====================
+    
+    struct RouteConfig {
+        uint64 chainSelector;
+        address vault;
+        uint32 gasLimit;
+        bool active;
+    }
+    
+    mapping(uint64 => RouteConfig) public routes;
+    mapping(bytes32 => bool) public processedMessages;
+    
+    IRouterClient public immutable ccipRouter;
+    LinkTokenInterface public immutable linkToken;
+    
+    // Gas optimization: pack frequently accessed data
+    uint128 public totalMessagesSent;
+    uint128 public totalMessagesReceived;
+    
+    // ==================== EVENTS ====================
+    
+    event MessageSent(bytes32 indexed messageId, uint64 destChain, uint256 fees);
+    event MessageReceived(bytes32 indexed messageId, uint64 sourceChain);
+    
+    // ==================== CONSTRUCTOR ====================
+    
+    constructor(address _router, address _link) CCIPReceiver(_router) {
+        ccipRouter = IRouterClient(_router);
+        linkToken = LinkTokenInterface(_link);
+    }
+    
+    // ==================== EXTERNAL FUNCTIONS ====================
+    
+    /**
+     * @notice Send cross-chain rebalance message
+     * @dev Optimized for minimal gas consumption
+     */
+    function sendRebalanceMessage(
+        uint64 destChainSelector,
+        bytes calldata payload
+    ) external returns (bytes32 messageId) {
+        RouteConfig memory route = routes[destChainSelector];
+        require(route.active, "Route inactive");
+        
+        // Create CCIP message
+        Client.EVM2AnyMessage memory message = Client.EVM2AnyMessage({
+            receiver: abi.encode(route.vault),
+            data: payload,
+            tokenAmounts: new Client.EVMTokenAmount[](0),
+            extraArgs: Client._argsToBytes(
+                Client.EVMExtraArgsV1({gasLimit: route.gasLimit})
+            ),
+            feeToken: address(linkToken)
+        });
+        
+        // Calculate and approve fees
+        uint256 fees = ccipRouter.getFee(destChainSelector, message);
+        linkToken.approve(address(ccipRouter), fees);
+        
+        // Send message
+        messageId = ccipRouter.ccipSend(destChainSelector, message);
+        
+        // Update state
+        unchecked {
+            totalMessagesSent++;
+        }
+        
+        emit MessageSent(messageId, destChainSelector, fees);
+    }
+    
+    /**
+     * @notice Handle incoming CCIP messages
+     */
+    function _ccipReceive(
+        Client.Any2EVMMessage memory message
+    ) internal override {
+        bytes32 messageId = message.messageId;
+        
+        // Prevent replay
+        require(!processedMessages[messageId], "Already processed");
+        processedMessages[messageId] = true;
+        
+        // Decode and execute
+        (uint8 action, bytes memory params) = abi.decode(
+            message.data,
+            (uint8, bytes)
+        );
+        
+        if (action == 0) {
+            _handleDeposit(params);
+        } else if (action == 1) {
+            _handleWithdraw(params);
+        }
+        
+        unchecked {
+            totalMessagesReceived++;
+        }
+        
+        emit MessageReceived(messageId, message.sourceChainSelector);
+    }
+    
+    // ==================== INTERNAL FUNCTIONS ====================
+    
+    function _handleDeposit(bytes memory params) private {
+        (address token, uint256 amount, address receiver) = abi.decode(
+            params,
+            (address, uint256, address)
+        );
+        
+        // Execute deposit to local vault
+        IYieldMaxVault(routes[block.chainid].vault).deposit(amount, receiver);
+    }
+    
+    function _handleWithdraw(bytes memory params) private {
+        (address receiver, uint256 shares) = abi.decode(
+            params,
+            (address, uint256)
+        );
+        
+        // Execute withdrawal from local vault
+        IYieldMaxVault(routes[block.chainid].vault).completeWithdraw(shares);
+    }
+}
+
+/**
+ * @title StrategyEngine
+ * @notice Yield optimization logic with gas-efficient calculations
+ */
+contract StrategyEngine is IStrategyEngine {
+    using FixedPointMathLib for uint256;
+    
+    // ==================== CONSTANTS ====================
+    
+    uint256 private constant PRECISION = 1e18;
+    uint256 private constant MAX_SLIPPAGE = 50; // 0.5% in basis points
+    uint256 private constant MIN_PROFIT_THRESHOLD = 1000e18; // $1000
+    
+    // Protocol risk scores (lower is better)
+    mapping(address => uint8) public protocolRiskScores;
+    
+    // Yield data from Chainlink Data Streams
+    mapping(address => mapping(uint64 => uint256)) public protocolYields;
+    
+    // ==================== EXTERNAL FUNCTIONS ====================
+    
+    /**
+     * @notice Calculate optimal allocation across protocols
+     * @dev Uses assembly for gas-efficient math
+     */
+    function calculateOptimalAllocation(bytes memory marketData)
+        external
+        view
+        override
+        returns (bytes memory allocation)
+    {
+        // Decode market data
+        (
+            address[] memory protocols,
+            uint256[] memory yields,
+            uint256[] memory tvls,
+            uint256 totalAmount
+        ) = abi.decode(marketData, (address[], uint256[], uint256[], uint256));
+        
+        uint256 length = protocols.length;
+        uint256[] memory allocations = new uint256[](length);
+        
+        // Calculate risk-adjusted yields
+        uint256[] memory adjustedYields = new uint256[](length);
+        uint256 totalAdjustedYield;
+        
+        for (uint256 i; i < length;) {
+            // Risk adjustment
+            uint256 riskMultiplier = 100 - protocolRiskScores[protocols[i]];
+            adjustedYields[i] = (yields[i] * riskMultiplier) / 100;
+            
+            // TVL weighting (favor larger protocols)
+            if (tvls[i] > 0) {
+                adjustedYields[i] = (adjustedYields[i] * _sqrt(tvls[i])) / 1e9;
+            }
+            
+            totalAdjustedYield += adjustedYields[i];
+            
+            unchecked { ++i; }
+        }
+        
+        // Allocate proportionally with constraints
+        for (uint256 i; i < length;) {
+            if (totalAdjustedYield > 0) {
+                allocations[i] = (totalAmount * adjustedYields[i]) / totalAdjustedYield;
+                
+                // Apply constraints
+                uint256 maxAllocation = (totalAmount * 40) / 100; // 40% max
+                if (allocations[i] > maxAllocation) {
+                    allocations[i] = maxAllocation;
+                }
+                
+                // Minimum position size
+                if (allocations[i] < 50_000e18 && allocations[i] > 0) {
+                    allocations[i] = 0;
+                }
+            }
+            
+            unchecked { ++i; }
+        }
+        
+        allocation = abi.encode(protocols, allocations);
+    }
+    
+    /**
+     * @notice Validate rebalance profitability
+     */
+    function validateRebalance(bytes memory instructions)
+        external
+        view
+        override
+        returns (bool profitable, uint256 expectedGain)
+    {
+        RebalanceInstruction[] memory rebalanceInstructions = abi.decode(
+            instructions,
+            (RebalanceInstruction[])
+        );
+        
+        uint256 totalCost;
+        uint256 totalBenefit;
+        
+        for (uint256 i; i < rebalanceInstructions.length;) {
+            RebalanceInstruction memory inst = rebalanceInstructions[i];
+            
+            // Estimate gas costs
+            uint256 gasCost = _estimateGasCost(inst.action, inst.amount);
+            totalCost += gasCost;
+            
+            // Calculate expected yield improvement
+            if (inst.action == 0 || inst.action == 2) {
+                uint256 yieldRate = protocolYields[inst.protocol][block.chainid];
+                uint256 dailyYield = (inst.amount * yieldRate) / 365 / PRECISION;
+                totalBenefit += dailyYield * 30; // 30-day benefit
+            }
+            
+            unchecked { ++i; }
+        }
+        
+        expectedGain = totalBenefit > totalCost ? totalBenefit - totalCost : 0;
+        profitable = expectedGain > MIN_PROFIT_THRESHOLD;
+    }
+    
+    // ==================== INTERNAL FUNCTIONS ====================
+    
+    /**
+     * @notice Fast square root approximation
+     * @dev Newton's method with assembly optimization
+     */
+    function _sqrt(uint256 x) private pure returns (uint256 z) {
+        assembly {
+            // Initial guess
+            z := add(shr(1, x), 1)
+            
+            // Newton's method iterations
+            let tmp := add(div(x, z), z)
+            z := shr(1, tmp)
+            
+            tmp := add(div(x, z), z)
+            z := shr(1, tmp)
+            
+            tmp := add(div(x, z), z)
+            z := shr(1, tmp)
+            
+            // Final adjustment
+            if lt(z, div(x, z)) { z := div(x, z) }
+        }
+    }
+    
+    /**
+     * @notice Estimate gas cost for operation
+     */
+    function _estimateGasCost(uint8 action, uint256 amount) 
+        private 
+        pure 
+        returns (uint256)
+    {
+        uint256 baseGas;
+        
+        if (action == 0) {
+            baseGas = 150_000; // Deposit
+        } else if (action == 1) {
+            baseGas = 200_000; // Withdraw
+        } else {
+            baseGas = 300_000; // Cross-chain
+        }
+        
+        // Add variable gas based on amount
+        if (amount > 1_000_000e18) {
+            baseGas += 50_000;
+        }
+        
+        // Assume $2 per 100k gas
+        return (baseGas * 2e18) / 100_000;
+    }
+}
+
+/**
+ * @title ChainlinkIntegration
+ * @notice Integrates all Chainlink services
+ */
+contract ChainlinkIntegration is AutomationCompatibleInterface, FunctionsClient {
+    using FunctionsRequest for FunctionsRequest.Request;
+    
+    // ==================== STATE VARIABLES ====================
+    
+    IYieldMaxVault public immutable vault;
+    IStrategyEngine public immutable strategy;
+    
+    // Chainlink Data Streams
+    mapping(address => AggregatorV3Interface) public priceFeeds;
+    
+    // Automation state
+    uint256 public lastRebalanceTime;
+    uint256 public rebalanceInterval = 4 hours;
+    
+    // Functions state
+    bytes32 public latestRequestId;
+    bytes public latestResponse;
+    bytes public latestError;
+    
+    // ==================== EVENTS ====================
+    
+    event RebalanceTriggered(uint256 timestamp, bytes32 requestId);
+    event MarketDataUpdated(address protocol, uint256 yield);
+    
+    // ==================== CONSTRUCTOR ====================
+    
+    constructor(
+        address _vault,
+        address _strategy,
+        address _functionsRouter
+    ) FunctionsClient(_functionsRouter) {
+        vault = IYieldMaxVault(_vault);
+        strategy = IStrategyEngine(_strategy);
+    }
+    
+    // ==================== AUTOMATION FUNCTIONS ====================
+    
+    /**
+     * @notice Check if rebalancing is needed
+     */
+    function checkUpkeep(bytes calldata)
+        external
+        view
+        override
+        returns (bool upkeepNeeded, bytes memory performData)
+    {
+        upkeepNeeded = (block.timestamp - lastRebalanceTime) >= rebalanceInterval;
+        
+        if (upkeepNeeded) {
+            // Prepare rebalance data
+            performData = abi.encode(block.timestamp);
+        }
+    }
+    
+    /**
+     * @notice Execute rebalancing
+     */
+    function performUpkeep(bytes calldata performData) external override {
+        uint256 timestamp = abi.decode(performData, (uint256));
+        require(
+            (block.timestamp - lastRebalanceTime) >= rebalanceInterval,
+            "Too early"
+        );
+        
+        lastRebalanceTime = block.timestamp;
+        
+        // Trigger Functions request for market data
+        _requestMarketData();
+        
+        emit RebalanceTriggered(timestamp, latestRequestId);
+    }
+    
+    // ==================== FUNCTIONS INTEGRATION ====================
+    
+    /**
+     * @notice Request market data via Chainlink Functions
+     */
+    function _requestMarketData() private {
+        FunctionsRequest.Request memory req;
+        req.initializeRequestForInlineJavaScript(_getMarketDataScript());
+        
+        bytes32 requestId = _sendRequest(
+            req.encodeCBOR(),
+            subscriptionId,
+            gasLimit,
+            donId
+        );
+        
+        latestRequestId = requestId;
+    }
+    
+    /**
+     * @notice Handle Functions response
+     */
+    function fulfillRequest(
+        bytes32 requestId,
+        bytes memory response,
+        bytes memory err
+    ) internal override {
+        latestResponse = response;
+        latestError = err;
+        
+        if (err.length == 0) {
+            // Process market data and trigger rebalance
+            _processMarketData(response);
+        }
+    }
+    
+    /**
+     * @notice Process market data and execute rebalance
+     */
+    function _processMarketData(bytes memory data) private {
+        // Decode market data
+        (address[] memory protocols, uint256[] memory yields) = abi.decode(
+            data,
+            (address[], uint256[])
+        );
+        
+        // Update yields
+        for (uint256 i; i < protocols.length;) {
+            emit MarketDataUpdated(protocols[i], yields[i]);
+            unchecked { ++i; }
+        }
+        
+        // Calculate optimal allocation
+        bytes memory allocation = strategy.calculateOptimalAllocation(data);
+        
+        // Execute rebalance
+        vault.rebalance(allocation);
+    }
+    
+    /**
+     * @notice JavaScript code for fetching market data
+     */
+    function _getMarketDataScript() private pure returns (string memory) {
+        return string(
+            abi.encodePacked(
+                "const protocols = ['0x...', '0x...'];",
+                "const yields = await Promise.all(protocols.map(async (p) => {",
+                "  const response = await Functions.makeHttpRequest({",
+                "    url: `https://api.yieldprotocol.com/v1/yields/${p}`",
+                "  });",
+                "  return response.data.apy;",
+                "}));",
+                "return Functions.encodeUint256Array(yields);"
+            )
+        );
+    }
+}
+
+// ==================== DEPLOYMENT SCRIPT ====================
+
+/**
+ * @title YieldMaxDeployer
+ * @notice Deployment script with gas optimization reporting
+ */
+contract YieldMaxDeployer {
+    struct DeploymentResult {
+        address vault;
+        address router;
+        address strategy;
+        address integration;
+        uint256 gasUsed;
+    }
+    
+    function deploy(
+        address asset,
+        address ccipRouter,
+        address linkToken,
+        address functionsRouter
+    ) external returns (DeploymentResult memory result) {
+        uint256 gasStart = gasleft();
+        
+        // Deploy Strategy Engine
+        result.strategy = address(new StrategyEngine());
+        
+        // Deploy Vault
+        result.vault = address(
+            new YieldMaxVault(asset, result.strategy, msg.sender)
+        );
+        
+        // Deploy Cross-Chain Router
+        result.router = address(
+            new CrossChainRouter(ccipRouter, linkToken)
+        );
+        
+        // Deploy Chainlink Integration
+        result.integration = address(
+            new ChainlinkIntegration(
+                result.vault,
+                result.strategy,
+                functionsRouter
+            )
+        );
+        
+        result.gasUsed = gasStart - gasleft();
+    }
+}

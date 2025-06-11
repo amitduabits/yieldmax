@@ -1,0 +1,688 @@
+// ==================== WEB3 INTEGRATION & REAL-TIME DATA ====================
+
+import { ethers } from 'ethers';
+import { 
+  useAccount, 
+  useConnect, 
+  useDisconnect, 
+  useNetwork, 
+  useSwitchNetwork,
+  useBalance,
+  useContractRead,
+  useContractWrite,
+  usePrepareContractWrite,
+  useWaitForTransaction,
+  WagmiConfig,
+  createConfig,
+  configureChains,
+  mainnet,
+  arbitrum,
+  polygon,
+  optimism
+} from 'wagmi';
+import { InjectedConnector } from 'wagmi/connectors/injected';
+import { WalletConnectConnector } from 'wagmi/connectors/walletConnect';
+import { CoinbaseWalletConnector } from 'wagmi/connectors/coinbaseWallet';
+import { publicProvider } from 'wagmi/providers/public';
+import { alchemyProvider } from 'wagmi/providers/alchemy';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { toast } from 'react-hot-toast';
+
+// ==================== CHAIN CONFIGURATION ====================
+
+export const SUPPORTED_CHAINS = {
+  ethereum: {
+    id: 1,
+    name: 'Ethereum',
+    rpcUrl: process.env.NEXT_PUBLIC_ETHEREUM_RPC,
+    explorer: 'https://etherscan.io',
+    nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+    color: '#627EEA',
+    contracts: {
+      yieldMaxVault: '0x...',
+      crossChainRouter: '0x...'
+    }
+  },
+  arbitrum: {
+    id: 42161,
+    name: 'Arbitrum',
+    rpcUrl: process.env.NEXT_PUBLIC_ARBITRUM_RPC,
+    explorer: 'https://arbiscan.io',
+    nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+    color: '#28A0F0',
+    contracts: {
+      yieldMaxVault: '0x...',
+      crossChainRouter: '0x...'
+    }
+  },
+  polygon: {
+    id: 137,
+    name: 'Polygon',
+    rpcUrl: process.env.NEXT_PUBLIC_POLYGON_RPC,
+    explorer: 'https://polygonscan.com',
+    nativeCurrency: { name: 'MATIC', symbol: 'MATIC', decimals: 18 },
+    color: '#8247E5',
+    contracts: {
+      yieldMaxVault: '0x...',
+      crossChainRouter: '0x...'
+    }
+  },
+  optimism: {
+    id: 10,
+    name: 'Optimism',
+    rpcUrl: process.env.NEXT_PUBLIC_OPTIMISM_RPC,
+    explorer: 'https://optimistic.etherscan.io',
+    nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+    color: '#FF0420',
+    contracts: {
+      yieldMaxVault: '0x...',
+      crossChainRouter: '0x...'
+    }
+  }
+};
+
+// ==================== WAGMI CONFIGURATION ====================
+
+const { chains, publicClient, webSocketPublicClient } = configureChains(
+  [mainnet, arbitrum, polygon, optimism],
+  [
+    alchemyProvider({ apiKey: process.env.NEXT_PUBLIC_ALCHEMY_API_KEY! }),
+    publicProvider()
+  ]
+);
+
+const config = createConfig({
+  autoConnect: true,
+  connectors: [
+    new InjectedConnector({
+      chains,
+      options: {
+        name: 'MetaMask',
+        shimDisconnect: true,
+      },
+    }),
+    new WalletConnectConnector({
+      chains,
+      options: {
+        projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID!,
+        showQrModal: true,
+      },
+    }),
+    new CoinbaseWalletConnector({
+      chains,
+      options: {
+        appName: 'YieldMax',
+      },
+    }),
+  ],
+  publicClient,
+  webSocketPublicClient,
+});
+
+// ==================== WEB3 HOOKS ====================
+
+export const useWeb3 = () => {
+  const { address, isConnected } = useAccount();
+  const { chain } = useNetwork();
+  const { connect, connectors, error, isLoading, pendingConnector } = useConnect();
+  const { disconnect } = useDisconnect();
+  const { switchNetwork } = useSwitchNetwork();
+  
+  const [isClient, setIsClient] = useState(false);
+  
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  const connectWallet = useCallback(async (connectorId?: string) => {
+    try {
+      const connector = connectorId 
+        ? connectors.find(c => c.id === connectorId) 
+        : connectors[0];
+      
+      if (connector) {
+        await connect({ connector });
+        toast.success('Wallet connected successfully');
+      }
+    } catch (error) {
+      console.error('Connection error:', error);
+      toast.error('Failed to connect wallet');
+    }
+  }, [connect, connectors]);
+
+  const switchChain = useCallback(async (chainId: number) => {
+    try {
+      await switchNetwork?.(chainId);
+      toast.success('Network switched successfully');
+    } catch (error) {
+      console.error('Switch network error:', error);
+      toast.error('Failed to switch network');
+    }
+  }, [switchNetwork]);
+
+  return {
+    account: address,
+    chainId: chain?.id,
+    isConnected: isClient && isConnected,
+    connectWallet,
+    disconnect,
+    switchChain,
+    connectors,
+    error,
+    isLoading,
+    pendingConnector
+  };
+};
+
+// ==================== REAL-TIME DATA HOOKS ====================
+
+interface YieldData {
+  protocol: string;
+  chain: string;
+  apy: number;
+  tvl: number;
+  utilization: number;
+  risk: number;
+  lastUpdate: number;
+}
+
+interface PortfolioPosition {
+  id: string;
+  protocol: string;
+  chain: string;
+  asset: string;
+  amount: number;
+  value: number;
+  yield: number;
+  earnings: number;
+}
+
+interface Transaction {
+  id: string;
+  type: 'deposit' | 'withdraw' | 'rebalance';
+  protocol: string;
+  chain: string;
+  amount: number;
+  asset: string;
+  hash: string;
+  status: 'pending' | 'confirmed' | 'failed';
+  timestamp: number;
+  gasUsed?: number;
+}
+
+export const useRealTimeData = () => {
+  const [yields, setYields] = useState<YieldData[]>([]);
+  const [portfolio, setPortfolio] = useState<{
+    positions: PortfolioPosition[];
+    totalValue: number;
+    change24h: number;
+  } | null>(null);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [gasPrice, setGasPrice] = useState<Record<string, number>>({});
+  const [isConnected, setIsConnected] = useState(false);
+  
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectAttemptsRef = useRef(0);
+
+  // WebSocket connection management
+  const connectWebSocket = useCallback(() => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) return;
+
+    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'wss://api.yieldmax.fi/v1/ws';
+    
+    try {
+      wsRef.current = new WebSocket(wsUrl);
+
+      wsRef.current.onopen = () => {
+        console.log('WebSocket connected');
+        setIsConnected(true);
+        reconnectAttemptsRef.current = 0;
+        
+        // Subscribe to data channels
+        wsRef.current?.send(JSON.stringify({
+          action: 'subscribe',
+          channels: ['yields', 'portfolio', 'gas', 'transactions']
+        }));
+      };
+
+      wsRef.current.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          handleWebSocketMessage(message);
+        } catch (error) {
+          console.error('Failed to parse WebSocket message:', error);
+        }
+      };
+
+      wsRef.current.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        setIsConnected(false);
+      };
+
+      wsRef.current.onclose = () => {
+        console.log('WebSocket disconnected');
+        setIsConnected(false);
+        
+        // Implement exponential backoff for reconnection
+        const backoffDelay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 30000);
+        reconnectAttemptsRef.current++;
+        
+        reconnectTimeoutRef.current = setTimeout(() => {
+          console.log(`Attempting to reconnect (attempt ${reconnectAttemptsRef.current})...`);
+          connectWebSocket();
+        }, backoffDelay);
+      };
+    } catch (error) {
+      console.error('Failed to create WebSocket connection:', error);
+      setIsConnected(false);
+    }
+  }, []);
+
+  // Handle incoming WebSocket messages
+  const handleWebSocketMessage = useCallback((message: any) => {
+    switch (message.type) {
+      case 'yield_update':
+        setYields(message.data.yields);
+        break;
+        
+      case 'portfolio_update':
+        setPortfolio(message.data);
+        break;
+        
+      case 'gas_update':
+        setGasPrice(message.data);
+        break;
+        
+      case 'transaction_update':
+        setTransactions(prev => {
+          const updated = [...prev];
+          const index = updated.findIndex(tx => tx.id === message.data.id);
+          
+          if (index >= 0) {
+            updated[index] = message.data;
+          } else {
+            updated.unshift(message.data);
+          }
+          
+          return updated.slice(0, 50); // Keep last 50 transactions
+        });
+        break;
+        
+      case 'notification':
+        handleNotification(message.data);
+        break;
+    }
+  }, []);
+
+  // Handle notifications
+  const handleNotification = useCallback((notification: any) => {
+    switch (notification.severity) {
+      case 'info':
+        toast(notification.message);
+        break;
+      case 'success':
+        toast.success(notification.message);
+        break;
+      case 'warning':
+        toast(notification.message, { icon: '⚠️' });
+        break;
+      case 'error':
+        toast.error(notification.message);
+        break;
+    }
+  }, []);
+
+  // Initialize WebSocket connection
+  useEffect(() => {
+    connectWebSocket();
+
+    return () => {
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
+    };
+  }, [connectWebSocket]);
+
+  // Fallback HTTP polling for critical data
+  useEffect(() => {
+    if (!isConnected) {
+      const pollInterval = setInterval(async () => {
+        try {
+          const response = await fetch('/api/yields/current');
+          const data = await response.json();
+          setYields(data.yields);
+        } catch (error) {
+          console.error('Polling error:', error);
+        }
+      }, 30000); // Poll every 30 seconds when WebSocket is down
+
+      return () => clearInterval(pollInterval);
+    }
+  }, [isConnected]);
+
+  return {
+    yields,
+    portfolio,
+    transactions,
+    gasPrice,
+    isConnected,
+    refetch: connectWebSocket
+  };
+};
+
+// ==================== CONTRACT INTERACTION HOOKS ====================
+
+const VAULT_ABI = [
+  {
+    "inputs": [
+      { "name": "assets", "type": "uint256" },
+      { "name": "receiver", "type": "address" }
+    ],
+    "name": "deposit",
+    "outputs": [{ "name": "shares", "type": "uint256" }],
+    "type": "function"
+  },
+  {
+    "inputs": [{ "name": "shares", "type": "uint256" }],
+    "name": "requestWithdraw",
+    "outputs": [{ "name": "requestId", "type": "uint256" }],
+    "type": "function"
+  },
+  {
+    "inputs": [{ "name": "requestId", "type": "uint256" }],
+    "name": "completeWithdraw",
+    "outputs": [{ "name": "assets", "type": "uint256" }],
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "totalAssets",
+    "outputs": [{ "name": "", "type": "uint256" }],
+    "type": "function",
+    "stateMutability": "view"
+  }
+];
+
+export const useYieldMaxVault = (chainId?: number) => {
+  const { chain } = useNetwork();
+  const currentChainId = chainId || chain?.id;
+  
+  const vaultAddress = currentChainId 
+    ? Object.values(SUPPORTED_CHAINS).find(c => c.id === currentChainId)?.contracts.yieldMaxVault 
+    : undefined;
+
+  // Read vault data
+  const { data: totalAssets } = useContractRead({
+    address: vaultAddress as `0x${string}`,
+    abi: VAULT_ABI,
+    functionName: 'totalAssets',
+    watch: true,
+  });
+
+  // Deposit function
+  const deposit = useCallback(async (amount: string, receiver: string) => {
+    if (!vaultAddress) {
+      throw new Error('Vault address not found for current chain');
+    }
+
+    try {
+      const { config } = await prepareContractWrite({
+        address: vaultAddress as `0x${string}`,
+        abi: VAULT_ABI,
+        functionName: 'deposit',
+        args: [ethers.parseUnits(amount, 6), receiver], // Assuming USDC with 6 decimals
+      });
+
+      const { hash } = await writeContract(config);
+      
+      toast.loading('Deposit transaction pending...', { id: hash });
+      
+      const receipt = await waitForTransaction({ hash });
+      
+      if (receipt.status === 'success') {
+        toast.success('Deposit successful!', { id: hash });
+      } else {
+        toast.error('Deposit failed', { id: hash });
+      }
+      
+      return receipt;
+    } catch (error) {
+      console.error('Deposit error:', error);
+      toast.error('Failed to deposit');
+      throw error;
+    }
+  }, [vaultAddress]);
+
+  // Request withdrawal
+  const requestWithdraw = useCallback(async (shares: string) => {
+    if (!vaultAddress) {
+      throw new Error('Vault address not found for current chain');
+    }
+
+    try {
+      const { config } = await prepareContractWrite({
+        address: vaultAddress as `0x${string}`,
+        abi: VAULT_ABI,
+        functionName: 'requestWithdraw',
+        args: [ethers.parseUnits(shares, 18)], // Shares use 18 decimals
+      });
+
+      const { hash } = await writeContract(config);
+      
+      toast.loading('Withdrawal request pending...', { id: hash });
+      
+      const receipt = await waitForTransaction({ hash });
+      
+      if (receipt.status === 'success') {
+        toast.success('Withdrawal requested!', { id: hash });
+      } else {
+        toast.error('Withdrawal request failed', { id: hash });
+      }
+      
+      return receipt;
+    } catch (error) {
+      console.error('Withdrawal request error:', error);
+      toast.error('Failed to request withdrawal');
+      throw error;
+    }
+  }, [vaultAddress]);
+
+  return {
+    totalAssets,
+    deposit,
+    requestWithdraw,
+  };
+};
+
+// ==================== TRANSACTION TRACKING ====================
+
+export const useTransactionStatus = (hash?: string) => {
+  const [status, setStatus] = useState<'pending' | 'confirmed' | 'failed'>('pending');
+  const [confirmations, setConfirmations] = useState(0);
+  const [receipt, setReceipt] = useState<ethers.TransactionReceipt | null>(null);
+
+  useEffect(() => {
+    if (!hash) return;
+
+    const checkTransaction = async () => {
+      try {
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const tx = await provider.getTransaction(hash);
+        
+        if (!tx) {
+          setStatus('failed');
+          return;
+        }
+
+        const receipt = await provider.waitForTransaction(hash, 1);
+        
+        if (receipt) {
+          setReceipt(receipt);
+          setStatus(receipt.status === 1 ? 'confirmed' : 'failed');
+          
+          // Track confirmations
+          const blockNumber = await provider.getBlockNumber();
+          setConfirmations(blockNumber - receipt.blockNumber);
+          
+          // Continue tracking confirmations
+          const interval = setInterval(async () => {
+            const currentBlock = await provider.getBlockNumber();
+            const confs = currentBlock - receipt.blockNumber;
+            setConfirmations(confs);
+            
+            if (confs >= 12) {
+              clearInterval(interval);
+            }
+          }, 15000); // Check every 15 seconds
+          
+          return () => clearInterval(interval);
+        }
+      } catch (error) {
+        console.error('Transaction tracking error:', error);
+        setStatus('failed');
+      }
+    };
+
+    checkTransaction();
+  }, [hash]);
+
+  return { status, confirmations, receipt };
+};
+
+// ==================== GAS PRICE ESTIMATION ====================
+
+export const useGasEstimation = () => {
+  const [gasEstimates, setGasEstimates] = useState<Record<string, {
+    fast: number;
+    standard: number;
+    slow: number;
+  }>>({});
+
+  useEffect(() => {
+    const fetchGasPrices = async () => {
+      try {
+        const estimates: Record<string, any> = {};
+        
+        for (const [chainName, chainConfig] of Object.entries(SUPPORTED_CHAINS)) {
+          try {
+            const provider = new ethers.JsonRpcProvider(chainConfig.rpcUrl);
+            const gasPrice = await provider.getFeeData();
+            
+            // Calculate different priority levels
+            const baseGasPrice = gasPrice.gasPrice || 0n;
+            
+            estimates[chainName] = {
+              fast: Number(baseGasPrice * 125n / 100n) / 1e9, // 25% premium
+              standard: Number(baseGasPrice) / 1e9,
+              slow: Number(baseGasPrice * 75n / 100n) / 1e9, // 25% discount
+            };
+          } catch (error) {
+            console.error(`Failed to fetch gas for ${chainName}:`, error);
+          }
+        }
+        
+        setGasEstimates(estimates);
+      } catch (error) {
+        console.error('Gas estimation error:', error);
+      }
+    };
+
+    fetchGasPrices();
+    const interval = setInterval(fetchGasPrices, 30000); // Update every 30 seconds
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const estimateTransactionCost = useCallback((
+    chainId: number,
+    gasLimit: number,
+    priority: 'fast' | 'standard' | 'slow' = 'standard'
+  ) => {
+    const chain = Object.values(SUPPORTED_CHAINS).find(c => c.id === chainId);
+    if (!chain || !gasEstimates[chain.name]) return null;
+
+    const gasPrice = gasEstimates[chain.name][priority];
+    const costInGwei = gasPrice * gasLimit;
+    const costInEth = costInGwei / 1e9;
+    
+    return {
+      gasPrice,
+      gasLimit,
+      totalCost: costInEth,
+      totalCostUSD: costInEth * 2500 // Rough ETH price, should use oracle
+    };
+  }, [gasEstimates]);
+
+  return { gasEstimates, estimateTransactionCost };
+};
+
+// ==================== CROSS-CHAIN MESSAGING ====================
+
+export const useCrossChainMessaging = () => {
+  const [messages, setMessages] = useState<Array<{
+    id: string;
+    sourceChain: number;
+    destChain: number;
+    status: 'pending' | 'delivered' | 'failed';
+    timestamp: number;
+  }>>([]);
+
+  const sendCrossChainMessage = useCallback(async (
+    sourceChainId: number,
+    destChainId: number,
+    payload: any
+  ) => {
+    const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Add to tracking
+    setMessages(prev => [...prev, {
+      id: messageId,
+      sourceChain: sourceChainId,
+      destChain: destChainId,
+      status: 'pending',
+      timestamp: Date.now()
+    }]);
+
+    try {
+      // Implementation would call CrossChainRouter contract
+      // This is a placeholder for the actual CCIP implementation
+      
+      toast.loading(`Sending cross-chain message...`, { id: messageId });
+      
+      // Simulate message delivery
+      setTimeout(() => {
+        setMessages(prev => prev.map(msg => 
+          msg.id === messageId 
+            ? { ...msg, status: 'delivered' }
+            : msg
+        ));
+        toast.success('Cross-chain message delivered!', { id: messageId });
+      }, 30000); // 30 seconds for cross-chain delivery
+      
+    } catch (error) {
+      console.error('Cross-chain message error:', error);
+      setMessages(prev => prev.map(msg => 
+        msg.id === messageId 
+          ? { ...msg, status: 'failed' }
+          : msg
+      ));
+      toast.error('Failed to send cross-chain message', { id: messageId });
+    }
+  }, []);
+
+  return { messages, sendCrossChainMessage };
+};
+
+// ==================== EXPORT PROVIDERS ====================
+
+export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  return (
+    <WagmiConfig config={config}>
+      {children}
+    </WagmiConfig>
+  );
+};

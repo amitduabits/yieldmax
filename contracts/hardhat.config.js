@@ -1,4 +1,5 @@
-require("@nomicfoundation/hardhat-ethers");
+require("@nomiclabs/hardhat-ethers");
+require("@nomiclabs/hardhat-etherscan"); // ADD THIS
 require("dotenv").config();
 
 module.exports = {
@@ -25,5 +26,9 @@ module.exports = {
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
       chainId: 421614
     }
+  },
+  etherscan: {
+    apiKey: process.env.ETHERSCAN_API_KEY
   }
 };
+

@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useAccount } from 'wagmi';
 import { parseUnits } from 'viem';
-import { useYieldMaxVault } from '../hooks/useYieldMaxVault';
+import { useYieldMaxVault } from '../frontend/hooks/useYieldMaxVault';
 
 export const DepositForm = () => {
   const [amount, setAmount] = useState('');

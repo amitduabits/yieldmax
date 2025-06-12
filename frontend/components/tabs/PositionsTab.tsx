@@ -8,7 +8,7 @@ import {
 import { useAccount, useContractWrite, usePrepareContractWrite, useWaitForTransaction } from 'wagmi';
 import { parseUnits, formatUnits } from 'viem';
 import styled from 'styled-components';
-import { CONTRACTS } from '../../config/contracts';
+import { CONTRACTS } from '../../../config/contracts';
 
 const Container = styled(motion.div)`
   display: flex;

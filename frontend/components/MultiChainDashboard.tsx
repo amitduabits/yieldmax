@@ -1,7 +1,7 @@
 // frontend/src/components/MultiChainDashboard.tsx
 import React from 'react';
 import { useNetwork, useSwitchNetwork } from 'wagmi';
-import { CONTRACTS, SUPPORTED_CHAINS } from '../config/contracts';
+import { CONTRACTS, SUPPORTED_CHAINS } from '../../config/contracts';
 
 export const MultiChainDashboard = () => {
   const { chain } = useNetwork();

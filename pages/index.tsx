@@ -1,6 +1,6 @@
-﻿import type { NextPage } from 'next';
+import type { NextPage } from 'next';
 import Head from 'next/head';
-import { YieldMaxDashboard } from '../components/YieldMaxDashboard';
+import YieldMaxDashboard  from '../components/YieldMaxDashboard';
 
 const Home: NextPage = () => {
   return (
@@ -18,3 +18,4 @@ const Home: NextPage = () => {
 };
 
 export default Home;
+

@@ -1,24 +1,7 @@
 import React from 'react';
 import styled from 'styled-components';
-import { useWeb3 } from '@/hooks/useWeb3';
-import { useRealTimeData } from '@/hooks/useRealTimeData';
-import { formatCurrency, formatPercentage } from '@/utils/format';
-import { ConnectButton } from '@rainbow-me/rainbowkit';
 
-import { useYieldMaxVault } from '../hooks/useYieldMaxVault';
-
-export const Dashboard = () => {
-  const { totalAssets, currentAPY } = useYieldMaxVault();
-  
-  return (
-    <div>
-      <h2>YieldMax Protocol Stats</h2>
-      <div>Total Value Locked: ${totalAssets} USDC</div>
-      <div>Current APY: {currentAPY}%</div>
-    </div>
-  );
-};
-
+// Styled Components
 const DashboardContainer = styled.div`
   min-height: 100vh;
   background: #09090B;
@@ -31,6 +14,8 @@ const Header = styled.header`
   justify-content: space-between;
   align-items: center;
   margin-bottom: 3rem;
+  flex-wrap: wrap;
+  gap: 1rem;
 `;
 
 const Title = styled.h1`
@@ -83,10 +68,12 @@ const YieldCard = styled.div`
   justify-content: space-between;
   align-items: center;
   transition: all 0.2s;
+  cursor: pointer;
   
   &:hover {
     background: rgba(255, 255, 255, 0.05);
     transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   }
 `;
 
@@ -112,14 +99,70 @@ const APYValue = styled.span`
   color: #22C55E;
 `;
 
-export default function YieldMaxDashboard() {
-  const { account, isConnected } = useWeb3();
-  const { yields, portfolio, gasPrice } = useRealTimeData();
+const ConnectButton = styled.button`
+  padding: 0.5rem 1.5rem;
+  background: linear-gradient(135deg, #3B82F6 0%, #8B5CF6 100%);
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  }
+  
+  &:active {
+    transform: translateY(0);
+  }
+`;
 
-  const totalValue = portfolio?.totalValue || 0;
-  const avgAPY = yields.length > 0 
-    ? yields.reduce((acc, y) => acc + y.apy, 0) / yields.length 
-    : 0;
+const EmptyState = styled.div`
+  text-align: center;
+  margin-top: 4rem;
+  padding: 2rem;
+`;
+
+const EmptyStateTitle = styled.h2`
+  font-size: 2rem;
+  margin-bottom: 2rem;
+  color: #FAFAFA;
+`;
+
+// Mock data
+const mockYields = [
+  { protocol: 'Aave V3', chain: 'Ethereum', apy: 5.23 },
+  { protocol: 'Compound', chain: 'Ethereum', apy: 4.87 },
+  { protocol: 'Morpho', chain: 'Base', apy: 6.92 },
+  { protocol: 'Spark', chain: 'Gnosis', apy: 7.15 },
+];
+
+// Utility functions
+const formatCurrency = (value: number) => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(value);
+};
+
+const formatPercentage = (value: number) => {
+  return `${value.toFixed(2)}%`;
+};
+
+// Main Dashboard Component
+export default function YieldMaxDashboard() {
+  const [isConnected, setIsConnected] = React.useState(false);
+  
+  // Mock data
+  const totalValue = 125430;
+  const avgAPY = mockYields.reduce((acc, y) => acc + y.apy, 0) / mockYields.length;
+  const positions = 3;
+  const gasPrice = 25;
 
   return (
     <DashboardContainer>
@@ -128,7 +171,9 @@ export default function YieldMaxDashboard() {
           <Title>YieldMax</Title>
           <p style={{ color: '#71717A' }}>Cross-Chain DeFi Yield Optimizer</p>
         </div>
-        <ConnectButton />
+        <ConnectButton onClick={() => setIsConnected(!isConnected)}>
+          {isConnected ? 'Disconnect' : 'Connect Wallet'}
+        </ConnectButton>
       </Header>
 
       {isConnected ? (
@@ -144,17 +189,17 @@ export default function YieldMaxDashboard() {
             </StatCard>
             <StatCard>
               <StatLabel>Active Positions</StatLabel>
-              <StatValue>{portfolio.positions?.length || 0}</StatValue>
+              <StatValue>{positions}</StatValue>
             </StatCard>
             <StatCard>
               <StatLabel>Gas Price</StatLabel>
-              <StatValue>{gasPrice.toFixed(0)} Gwei</StatValue>
+              <StatValue>{gasPrice} Gwei</StatValue>
             </StatCard>
           </StatsGrid>
 
-          <h2 style={{ marginBottom: '1rem' }}>Available Yields</h2>
+          <h2 style={{ marginBottom: '1rem', fontSize: '1.5rem' }}>Available Yields</h2>
           <YieldGrid>
-            {yields.map((yield, index) => (
+            {mockYields.map((yield, index) => (
               <YieldCard key={index}>
                 <ProtocolInfo>
                   <ProtocolName>{yield.protocol}</ProtocolName>
@@ -166,10 +211,12 @@ export default function YieldMaxDashboard() {
           </YieldGrid>
         </>
       ) : (
-        <div style={{ textAlign: 'center', marginTop: '4rem' }}>
-          <h2 style={{ marginBottom: '2rem' }}>Connect your wallet to get started</h2>
-          <ConnectButton />
-        </div>
+        <EmptyState>
+          <EmptyStateTitle>Connect your wallet to get started</EmptyStateTitle>
+          <ConnectButton onClick={() => setIsConnected(true)}>
+            Connect Wallet
+          </ConnectButton>
+        </EmptyState>
       )}
     </DashboardContainer>
   );

@@ -1,8 +1,8 @@
 // config/contracts.ts
 export const CONTRACTS = {
   sepolia: {
-    USDC: '0x31D0c90C471F756FBC8a5E4f839d05bAF9a368dd',
-    YieldMaxVault: '0xb8fBfe078fE486fD638478dC8C234003cEf8B452',
+    USDC: '0x5289F073c6ff1A4175ac7FBb1f9908e1354b910d',
+    YieldMaxVault: '0xECbA31cf51F88BA5193186abf35225ECE097df44',
     StrategyEngine: '0x6186d8180E85213fDEE20eb9f96ae94288Ff543d',
     AIOptimizer: '', // Deploy this
     CrossChainManager: '', // Deploy this

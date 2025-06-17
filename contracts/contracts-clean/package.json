@@ -1,0 +1,23 @@
+{
+  "name": "yieldmax-clean",
+  "version": "1.0.0",
+  "description": "YieldMax Clean Deployment",
+  "scripts": {
+    "compile": "npx hardhat compile",
+    "deploy": "npx hardhat run scripts/deploy-core-only.js --network sepolia",
+    "test": "npx hardhat test"
+  },
+  "dependencies": {
+    "@chainlink/contracts": "^1.4.0",
+    "@chainlink/contracts-ccip": "^1.6.0",
+    "@openzeppelin/contracts": "^5.3.0",
+    "@openzeppelin/contracts-upgradeable": "^5.3.0",
+    "ethers": "^5.7.2"
+  },
+  "devDependencies": {
+    "@nomiclabs/hardhat-ethers": "^2.2.3",
+    "@nomiclabs/hardhat-etherscan": "^3.1.8",
+    "dotenv": "^16.5.0",
+    "hardhat": "^2.24.3"
+  }
+}

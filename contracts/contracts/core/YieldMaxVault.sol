@@ -5,9 +5,45 @@ import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
-import "@chainlink/contracts-ccip/src/v0.8/ccip/interfaces/IRouterClient.sol";
-import "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Client.sol";
-import "@chainlink/contracts/src/v0.8/interfaces/LinkTokenInterface.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@chainlink/contracts-ccip/contracts/interfaces/IRouterClient.sol";
+import "@chainlink/contracts-ccip/contracts/libraries/Client.sol";
+
+// Interface for Strategy Engine
+interface IStrategyEngine {
+    function calculateOptimalAllocation(
+        uint256 totalAssets,
+        uint64[] calldata supportedChains,
+        address[] calldata protocols
+    ) external view returns (
+        uint64[] memory targetChains,
+        address[] memory targetProtocols,
+        uint256[] memory allocations
+    );
+    
+    function executeRebalance(
+        uint256 amount,
+        uint64 targetChain,
+        address targetProtocol,
+        bytes calldata strategyData
+    ) external;
+}
+
+// Interface for LINK Token
+interface LinkTokenInterface {
+    function allowance(address owner, address spender) external view returns (uint256 remaining);
+    function approve(address spender, uint256 value) external returns (bool success);
+    function balanceOf(address owner) external view returns (uint256 balance);
+    function decimals() external view returns (uint8 decimalPlaces);
+    function decreaseApproval(address spender, uint256 addedValue) external returns (bool success);
+    function increaseApproval(address spender, uint256 subtractedValue) external;
+    function name() external view returns (string memory tokenName);
+    function symbol() external view returns (string memory tokenSymbol);
+    function totalSupply() external view returns (uint256 totalTokensIssued);
+    function transfer(address to, uint256 value) external returns (bool success);
+    function transferAndCall(address to, uint256 value, bytes calldata data) external returns (bool success);
+    function transferFrom(address from, address to, uint256 value) external returns (bool success);
+}
 
 contract YieldMaxVault is 
     Initializable, 
@@ -224,31 +260,78 @@ contract YieldMaxVault is
         _unpause();
     }
 
-        // In YieldMaxVault.sol
-function batchDeposit(
-    address[] calldata users,
-    uint256[] calldata amounts
-) external onlyRole(KEEPER_ROLE) {
-    require(users.length == amounts.length, "Length mismatch");
-    
-    uint256 totalAmount;
-    for (uint256 i = 0; i < users.length; i++) {
-        totalAmount += amounts[i];
+    // Batch deposit function for gas optimization
+    function batchDeposit(
+        address[] calldata users,
+        uint256[] calldata amounts
+    ) external onlyRole(KEEPER_ROLE) {
+        require(users.length == amounts.length, "Length mismatch");
+        
+        uint256 totalAmount;
+        for (uint256 i = 0; i < users.length; i++) {
+            totalAmount += amounts[i];
+        }
+        
+        // Single transfer for all deposits
+        asset.transferFrom(msg.sender, address(this), totalAmount);
+        
+        // Process each deposit
+        for (uint256 i = 0; i < users.length; i++) {
+            _processDeposit(users[i], amounts[i]);
+        }
+    }
+
+    // Internal function to process individual deposits
+    function _processDeposit(address user, uint256 amount) internal {
+        require(amount > 0, "Amount must be greater than 0");
+        require(user != address(0), "Invalid user");
+        
+        // Calculate shares
+        uint256 shares;
+        if (totalShares == 0) {
+            shares = amount;
+        } else {
+            shares = (amount * totalShares) / totalAssets;
+        }
+        
+        // Update state
+        totalAssets += amount;
+        totalShares += shares;
+        userData[user].shares += shares;
+        userData[user].lastDeposit = block.timestamp;
+        
+        emit Deposit(user, amount, shares);
     }
     
-    // Single transfer for all deposits
-    asset.transferFrom(msg.sender, address(this), totalAmount);
-    
-    // Process each deposit
-    for (uint256 i = 0; i < users.length; i++) {
-        _processDeposit(users[i], amounts[i]);
+    // MEV protection modifier
+    modifier mevProtection() {
+        require(
+            tx.gasprice <= block.basefee + 2 gwei,
+            "Gas price too high - possible MEV"
+        );
+        _;
     }
-}
-modifier mevProtection() {
-    require(
-        tx.gasprice <= block.basefee + 2 gwei,
-        "Gas price too high - possible MEV"
-    );
-    _;
-}
+
+    // View functions
+    function getUserData(address user) external view returns (UserData memory) {
+        return userData[user];
+    }
+    
+    function getWithdrawRequest(uint256 requestId) external view returns (WithdrawRequest memory) {
+        return withdrawRequests[requestId];
+    }
+    
+    function calculateShares(uint256 amount) external view returns (uint256) {
+        if (totalShares == 0) {
+            return amount;
+        }
+        return (amount * totalShares) / totalAssets;
+    }
+    
+    function calculateAssets(uint256 shares) external view returns (uint256) {
+        if (totalShares == 0) {
+            return 0;
+        }
+        return (shares * totalAssets) / totalShares;
+    }
 }

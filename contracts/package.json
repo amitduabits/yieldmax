@@ -50,10 +50,11 @@
     "@types/react-dom": "^18.2.0",
     "@types/styled-components": "^5.1.30",
     "chai": "^5.2.0",
+    "dotenv": "^16.5.0",
     "eslint": "^8.0.0",
     "eslint-config-next": "14.0.0",
     "ethereum-waffle": "^4.0.10",
-    "hardhat": "^2.24.2",
+    "hardhat": "^2.24.3",
     "typescript": "^5.0.0"
   }
 }

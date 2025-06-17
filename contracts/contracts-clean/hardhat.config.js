@@ -1,5 +1,5 @@
 require("@nomiclabs/hardhat-ethers");
-require("@nomiclabs/hardhat-etherscan"); // ADD THIS
+require("@nomiclabs/hardhat-etherscan");
 require("dotenv").config();
 
 module.exports = {
@@ -13,10 +13,10 @@ module.exports = {
     }
   },
   paths: {
-    sources: "./contracts", // 👈 this ensures everything inside /contracts and subfolders is compiled
-    artifacts: "./artifacts", // optional
-    cache: "./cache",         // optional
-    tests: "./test",          // optional
+    sources: "./contracts",
+    artifacts: "./artifacts",
+    cache: "./cache",
+    tests: "./test",
   },
   networks: {
     hardhat: {
@@ -37,4 +37,3 @@ module.exports = {
     apiKey: process.env.ETHERSCAN_API_KEY
   }
 };
-

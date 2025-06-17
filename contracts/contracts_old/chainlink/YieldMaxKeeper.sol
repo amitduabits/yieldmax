@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import "@chainlink/contracts/src/v0.8/AutomationCompatible.sol";
+// import "@chainlink/contracts/src/v0.8/AutomationCompatible.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract YieldMaxKeeper is AutomationCompatibleInterface, Ownable {

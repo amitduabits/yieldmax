@@ -54,3 +54,33 @@ export const CHAINLINK_CONTRACTS = {
     ETH_USD_FEED: '0xF9680D99D6C9589e2a93a78A04A279e509205945',
   }
 };
+
+export const MAINNET_CONTRACTS = {
+  ethereum: {
+    chainId: 1,
+    yieldMaxVault: "0x...", // From deployment
+    crossChainManager: "0x...",
+    aiOptimizer: "0x...",
+    usdc: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    protocols: {
+      aave: "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2",
+      compound: "0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B"
+    }
+  },
+  arbitrum: {
+    chainId: 42161,
+    yieldMaxVault: "0x...", // From deployment
+    crossChainManager: "0x...",
+    aiOptimizer: "0x...",
+    usdc: "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",
+    protocols: {
+      aave: "0x794a61358D6845594F94dc1DB02A252b5b4814aD",
+      gmx: "0xaBBc5F99639c9B6bCb58544ddf04EFA6802F4064"
+    }
+  }
+};
+
+export const getContractAddress = (contractName: string, chainId: number) => {
+  const network = getNetworkName(chainId);
+  return MAINNET_CONTRACTS[network]?.[contractName];
+};

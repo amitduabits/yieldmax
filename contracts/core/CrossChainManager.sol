@@ -1,3 +1,4 @@
+/*
 // contracts/core/CrossChainManager.sol
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
@@ -476,5 +477,117 @@ contract DataStreamConsumer is Ownable {
     
     function addSupportedChain(uint256 chainId) external onlyOwner {
         supportedChains.push(chainId);
+    }
+}*/
+
+pragma solidity ^0.8.19;
+
+import "@chainlink/contracts-ccip/src/v0.8/ccip/applications/CCIPReceiver.sol";
+import "@chainlink/contracts-ccip/src/v0.8/ccip/interfaces/IRouterClient.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+contract CrossChainManager is CCIPReceiver, Ownable {
+    error InvalidRouter(address router);
+    error InvalidSender(bytes sender);
+    error InvalidChain(uint64 chainSelector);
+    
+    struct ChainConfig {
+        address vault;
+        bool isActive;
+        uint256 gasLimit;
+    }
+    
+    mapping(uint64 => ChainConfig) public chainConfigs;
+    mapping(bytes32 => bool) public processedMessages;
+    
+    event MessageReceived(
+        bytes32 indexed messageId,
+        uint64 indexed sourceChain,
+        address sender,
+        bytes data
+    );
+    
+    event RebalanceExecuted(
+        uint64 sourceChain,
+        uint64 destChain,
+        uint256 amount
+    );
+    
+    constructor(address _router) CCIPReceiver(_router) {}
+    
+    function _ccipReceive(Client.Any2EVMMessage memory message) 
+        internal 
+        override 
+    {
+        bytes32 messageId = message.messageId;
+        uint64 sourceChain = message.sourceChainSelector;
+        
+        // Validate sender
+        address sender = abi.decode(message.sender, (address));
+        require(
+            sender == chainConfigs[sourceChain].vault,
+            "Invalid sender"
+        );
+        
+        // Prevent replay
+        require(!processedMessages[messageId], "Already processed");
+        processedMessages[messageId] = true;
+        
+        // Decode and execute
+        (uint256 amount, bytes memory strategyData) = abi.decode(
+            message.data,
+            (uint256, bytes)
+        );
+        
+        // Execute strategy
+        _executeStrategy(sourceChain, amount, strategyData);
+        
+        emit MessageReceived(messageId, sourceChain, sender, message.data);
+    }
+    
+    function _executeStrategy(
+        uint64 sourceChain,
+        uint256 amount,
+        bytes memory strategyData
+    ) private {
+        // Decode strategy instructions
+        (uint8 action, address protocol, bytes memory params) = abi.decode(
+            strategyData,
+            (uint8, address, bytes)
+        );
+        
+        if (action == 0) { // Deposit to protocol
+            _depositToProtocol(protocol, amount, params);
+        } else if (action == 1) { // Withdraw from protocol
+            _withdrawFromProtocol(protocol, amount, params);
+        } else if (action == 2) { // Swap and deposit
+            _swapAndDeposit(protocol, amount, params);
+        }
+        
+        emit RebalanceExecuted(sourceChain, block.chainid, amount);
+    }
+    
+    function _depositToProtocol(
+        address protocol,
+        uint256 amount,
+        bytes memory params
+    ) private {
+        // Example: Deposit to Aave
+        if (protocol == AAVE_POOL) {
+            IAavePool(protocol).supply(asset, amount, address(this), 0);
+        }
+        // Add more protocol integrations
+    }
+    
+    function configureChain(
+        uint64 chainSelector,
+        address vault,
+        uint256 gasLimit
+    ) external onlyOwner {
+        chainConfigs[chainSelector] = ChainConfig({
+            vault: vault,
+            isActive: true,
+            gasLimit: gasLimit
+        });
     }
 }

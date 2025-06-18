@@ -1,0 +1,9 @@
+{
+  "network": "sepolia",
+  "timestamp": "2025-06-18T03:57:51.449Z",
+  "contracts": {
+    "USDC": "0x5289F073c6ff1A4175ac7FBb1f9908e1354b910d",
+    "YieldMaxVault": "0xECbA31cf51F88BA5193186abf35225ECE097df44",
+    "StrategyEngine": "0xE11F090837e07D294D83db28f745f7d819cB7C7D"
+  }
+}

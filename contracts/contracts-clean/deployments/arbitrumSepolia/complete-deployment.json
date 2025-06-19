@@ -1,0 +1,32 @@
+{
+  "network": "arbitrumSepolia",
+  "chainId": 421614,
+  "deployedAt": "2025-06-18T11:38:00.641Z",
+  "deployer": "0x919Cb3B8A6DC639431960B80EaD34704A9343BB2",
+  "contracts": {
+    "YieldMaxVault": "0x10d2ECF290f56BdBF6B8e014c426c17299b4E3B2",
+    "WorkingStrategyEngine": "0x4408AA1A6B20Aa4cD233c1d123550Dc57959E132",
+    "SimpleCrossChainRouter": "0x0110f1f9f69539B14D7d38A5fc1Ec5D9B5850dF6",
+    "AutomatedStrategyEngine": "0xBEff1059bb19Db93a1f9Eb25B094719479792D31",
+    "USDC": "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d"
+  },
+  "chainlink": {
+    "automation": {
+      "target": "0xBEff1059bb19Db93a1f9Eb25B094719479792D31",
+      "description": "Ready for Chainlink Automation registration"
+    },
+    "ccip": {
+      "router": "0x0110f1f9f69539B14D7d38A5fc1Ec5D9B5850dF6",
+      "supportedChains": [
+        "16015286601757825753"
+      ],
+      "description": "Cross-chain routing enabled"
+    }
+  },
+  "status": "complete",
+  "crossChain": {
+    "sepoliaVault": "0xECbA31cf51F88BA5193186abf35225ECE097df44",
+    "arbitrumVault": "0x10d2ECF290f56BdBF6B8e014c426c17299b4E3B2",
+    "configured": true
+  }
+}

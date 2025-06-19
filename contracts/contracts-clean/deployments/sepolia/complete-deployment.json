@@ -1,0 +1,13 @@
+{
+  "network": "sepolia",
+  "chainId": 11155111,
+  "deployedAt": "2025-06-18T10:40:08.205Z",
+  "deployer": "0x919Cb3B8A6DC639431960B80EaD34704A9343BB2",
+  "contracts": {
+    "YieldMaxVault": "0xECbA31cf51F88BA5193186abf35225ECE097df44",
+    "USDC": "0x5289F073c6ff1A4175ac7FBb1f9908e1354b910d",
+    "WorkingStrategyEngine": "0x51Ae3bf6A3f38d6c6cF503aF3b8d04B0C878f881",
+    "AutomatedStrategyEngine": "0x467B0446a4628F83DEA0fd82cB83f8ef8140fC30",
+    "SimpleCrossChainRouter": "0x2f9C42AFAF2De4c56Fe37e5fF80a2F80FEc3F589"
+  }
+}

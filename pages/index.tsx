@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { ethers } from 'ethers';
 import LivePortfolio from '../frontend/components/Portfolio/LivePortfolio';
-import AIOptimization from '../frontend/components/AIOptimization';
+import EnhancedAIOptimization from '../frontend/components/EnhancedAIOptimization';
+import AutomationDashboard from '../frontend/components/AutomationDashboard';
+import CrossChainDashboard from '../frontend/components/CrossChainDashboard';
 
 export default function Home() {
   const [provider, setProvider] = useState(null);
@@ -9,7 +11,7 @@ export default function Home() {
   const [address, setAddress] = useState('');
   const [chainId, setChainId] = useState(null);
   const [userBalance, setUserBalance] = useState(0);
-  const [showAI, setShowAI] = useState(false);
+  const [activeView, setActiveView] = useState('portfolio');
 
   useEffect(() => {
     if (typeof window !== 'undefined' && window.ethereum) {
@@ -70,6 +72,22 @@ export default function Home() {
     setSigner(null);
     setAddress('');
     setChainId(null);
+    setUserBalance(0);
+  };
+
+  const renderActiveView = () => {
+    switch(activeView) {
+      case 'portfolio':
+        return <LivePortfolio signer={signer} provider={provider} onBalanceUpdate={setUserBalance} />;
+      case 'ai':
+        return <EnhancedAIOptimization signer={signer} userBalance={userBalance} />;
+      case 'automation':
+        return <AutomationDashboard signer={signer} />;
+      case 'crosschain':
+        return <CrossChainDashboard signer={signer} userBalance={userBalance} />;
+      default:
+        return <LivePortfolio signer={signer} provider={provider} onBalanceUpdate={setUserBalance} />;
+    }
   };
 
   return (
@@ -96,134 +114,158 @@ export default function Home() {
           maxWidth: '1400px',
           margin: '0 auto'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontSize: '28px' }}>⚡</span>
-            <h1 style={{ 
-              fontSize: '32px', 
-              fontWeight: 'bold',
-              background: 'linear-gradient(135deg, #3b82f6 0%, #10b981 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              margin: 0
-            }}>
-              YieldMax
-            </h1>
-            <span style={{
-              background: 'linear-gradient(135deg, #8b5cf6 0%, #3b82f6 100%)',
-              padding: '4px 12px',
-              borderRadius: '20px',
-              fontSize: '12px',
-              fontWeight: 'bold',
-              marginLeft: '10px'
-            }}>
-              AI-Powered
-            </span>
-          </div>
+          <h1 style={{ 
+            fontSize: '32px', 
+            fontWeight: 'bold',
+            background: 'linear-gradient(135deg, #3b82f6 0%, #10b981 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            margin: 0
+          }}>
+            ⚡ YieldMax
+          </h1>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-            {/* Feature Toggle */}
-            <button
-              onClick={() => setShowAI(!showAI)}
-              style={{
-                padding: '10px 20px',
-                background: showAI ? 
-                  'linear-gradient(135deg, #8b5cf6 0%, #3b82f6 100%)' : 
-                  'rgba(255, 255, 255, 0.1)',
-                border: '1px solid rgba(255, 255, 255, 0.2)',
-                borderRadius: '10px',
-                color: '#fff',
-                fontSize: '14px',
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                transition: 'all 0.3s ease'
-              }}
-            >
-              {showAI ? '📊 Portfolio View' : '🤖 AI Optimization'}
-            </button>
-
-            {/* Network Badge */}
-            {chainId && (
-              <div style={{
-                padding: '8px 16px',
-                background: 'rgba(59, 130, 246, 0.2)',
-                border: '1px solid rgba(59, 130, 246, 0.5)',
-                borderRadius: '20px',
-                fontSize: '14px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}>
-                <div style={{
-                  width: '8px',
-                  height: '8px',
-                  borderRadius: '50%',
-                  background: '#10b981',
-                  animation: 'pulse 2s infinite'
-                }} />
-                {chainId === 11155111 ? 'Sepolia' : 
-                 chainId === 421614 ? 'Arbitrum Sepolia' :
-                 `Chain ${chainId}`}
-              </div>
-            )}
-
-            {/* Connect Button */}
-            {!address ? (
+          {/* Navigation Tabs */}
+          {address && (
+            <div style={{ display: 'flex', gap: '10px' }}>
               <button
-                onClick={handleConnect}
+                onClick={() => setActiveView('portfolio')}
                 style={{
-                  padding: '12px 24px',
-                  background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
-                  border: 'none',
-                  borderRadius: '10px',
+                  padding: '8px 16px',
+                  background: activeView === 'portfolio' ? 'rgba(59, 130, 246, 0.2)' : 'transparent',
+                  border: '1px solid rgba(59, 130, 246, 0.5)',
+                  borderRadius: '8px',
                   color: '#fff',
-                  fontSize: '16px',
-                  fontWeight: 'bold',
                   cursor: 'pointer',
-                  transition: 'all 0.3s ease',
-                  boxShadow: '0 4px 15px rgba(59, 130, 246, 0.3)'
-                }}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                  e.currentTarget.style.boxShadow = '0 6px 20px rgba(59, 130, 246, 0.4)';
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 4px 15px rgba(59, 130, 246, 0.3)';
+                  fontSize: '14px',
+                  fontWeight: activeView === 'portfolio' ? 'bold' : 'normal',
+                  transition: 'all 0.2s ease'
                 }}
               >
-                Connect Wallet
+                📊 Portfolio
               </button>
-            ) : (
+              <button
+                onClick={() => setActiveView('ai')}
+                style={{
+                  padding: '8px 16px',
+                  background: activeView === 'ai' ? 'rgba(16, 185, 129, 0.2)' : 'transparent',
+                  border: '1px solid rgba(16, 185, 129, 0.5)',
+                  borderRadius: '8px',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: activeView === 'ai' ? 'bold' : 'normal',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                🤖 AI Optimization
+              </button>
+              <button
+                onClick={() => setActiveView('automation')}
+                style={{
+                  padding: '8px 16px',
+                  background: activeView === 'automation' ? 'rgba(139, 92, 246, 0.2)' : 'transparent',
+                  border: '1px solid rgba(139, 92, 246, 0.5)',
+                  borderRadius: '8px',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: activeView === 'automation' ? 'bold' : 'normal',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                ⚡ Automation
+              </button>
+              <button
+                onClick={() => setActiveView('crosschain')}
+                style={{
+                  padding: '8px 16px',
+                  background: activeView === 'crosschain' ? 'rgba(234, 179, 8, 0.2)' : 'transparent',
+                  border: '1px solid rgba(234, 179, 8, 0.5)',
+                  borderRadius: '8px',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: activeView === 'crosschain' ? 'bold' : 'normal',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                🌐 Cross-Chain
+              </button>
+            </div>
+          )}
+
+          {/* Wallet Connection */}
+          {!address ? (
+            <button
+              onClick={handleConnect}
+              style={{
+                padding: '12px 24px',
+                background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                border: 'none',
+                borderRadius: '10px',
+                color: '#fff',
+                fontSize: '16px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+                boxShadow: '0 4px 15px rgba(59, 130, 246, 0.3)'
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 6px 20px rgba(59, 130, 246, 0.4)';
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 4px 15px rgba(59, 130, 246, 0.3)';
+              }}
+            >
+              Connect Wallet
+            </button>
+          ) : (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '15px'
+            }}>
               <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '15px',
                 padding: '8px 16px',
                 background: 'rgba(16, 185, 129, 0.1)',
                 border: '1px solid rgba(16, 185, 129, 0.3)',
-                borderRadius: '10px'
+                borderRadius: '10px',
+                fontSize: '14px'
               }}>
-                <div style={{
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '16px'
-                }}>
-                  👤
-                </div>
-                <span style={{ fontSize: '14px', fontWeight: '500' }}>
-                  {address.slice(0, 6)}...{address.slice(-4)}
-                </span>
+                {chainId === 11155111 ? '🔷 Sepolia' : 
+                 chainId === 421614 ? '🔵 Arbitrum' : 
+                 `Chain ${chainId}`}
               </div>
-            )}
-          </div>
+              <div style={{
+                padding: '8px 16px',
+                background: 'rgba(16, 185, 129, 0.1)',
+                border: '1px solid rgba(16, 185, 129, 0.3)',
+                borderRadius: '10px',
+                fontSize: '14px',
+                fontWeight: '500'
+              }}>
+                {address.slice(0, 6)}...{address.slice(-4)}
+              </div>
+              <button
+                onClick={disconnect}
+                style={{
+                  padding: '8px 16px',
+                  background: 'rgba(239, 68, 68, 0.1)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  borderRadius: '8px',
+                  color: '#ef4444',
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                Disconnect
+              </button>
+            </div>
+          )}
         </div>
       </header>
 
@@ -234,10 +276,7 @@ export default function Home() {
         padding: '40px 20px'
       }}>
         {!address ? (
-          <div style={{
-            textAlign: 'center',
-            padding: '100px 20px'
-          }}>
+          <div style={{ textAlign: 'center', padding: '100px 20px' }}>
             <h2 style={{ 
               fontSize: '48px', 
               marginBottom: '20px',
@@ -249,19 +288,18 @@ export default function Home() {
             </h2>
             <p style={{ 
               fontSize: '20px', 
-              color: '#94a3b8',
+              color: '#94a3b8', 
               marginBottom: '40px',
               maxWidth: '600px',
               margin: '0 auto 40px'
             }}>
-              The first AI-powered cross-chain yield optimizer built with Chainlink Functions.
-              Connect your wallet to start maximizing your DeFi returns.
+              The first AI-powered cross-chain yield optimizer built with Chainlink
             </p>
             <div style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
               gap: '20px',
-              maxWidth: '800px',
+              maxWidth: '1000px',
               margin: '0 auto'
             }}>
               <div style={{
@@ -273,13 +311,25 @@ export default function Home() {
                 <div style={{ fontSize: '32px', marginBottom: '15px' }}>🤖</div>
                 <h3 style={{ fontSize: '20px', marginBottom: '10px' }}>AI Optimization</h3>
                 <p style={{ color: '#94a3b8', fontSize: '14px' }}>
-                  Chainlink Functions analyze yields across protocols in real-time
+                  Dynamic yield optimization with real-time strategy updates
                 </p>
               </div>
               <div style={{
                 padding: '30px',
                 background: 'rgba(16, 185, 129, 0.1)',
                 border: '1px solid rgba(16, 185, 129, 0.3)',
+                borderRadius: '15px'
+              }}>
+                <div style={{ fontSize: '32px', marginBottom: '15px' }}>⚡</div>
+                <h3 style={{ fontSize: '20px', marginBottom: '10px' }}>Chainlink Automation</h3>
+                <p style={{ color: '#94a3b8', fontSize: '14px' }}>
+                  Automatic rebalancing every hour, 24/7
+                </p>
+              </div>
+              <div style={{
+                padding: '30px',
+                background: 'rgba(139, 92, 246, 0.1)',
+                border: '1px solid rgba(139, 92, 246, 0.3)',
                 borderRadius: '15px'
               }}>
                 <div style={{ fontSize: '32px', marginBottom: '15px' }}>🌐</div>
@@ -290,33 +340,20 @@ export default function Home() {
               </div>
               <div style={{
                 padding: '30px',
-                background: 'rgba(139, 92, 246, 0.1)',
-                border: '1px solid rgba(139, 92, 246, 0.3)',
+                background: 'rgba(234, 179, 8, 0.1)',
+                border: '1px solid rgba(234, 179, 8, 0.3)',
                 borderRadius: '15px'
               }}>
-                <div style={{ fontSize: '32px', marginBottom: '15px' }}>⚡</div>
-                <h3 style={{ fontSize: '20px', marginBottom: '10px' }}>Auto-Rebalance</h3>
+                <div style={{ fontSize: '32px', marginBottom: '15px' }}>🔗</div>
+                <h3 style={{ fontSize: '20px', marginBottom: '10px' }}>CCIP Integration</h3>
                 <p style={{ color: '#94a3b8', fontSize: '14px' }}>
-                  Chainlink Automation rebalances your portfolio 24/7
+                  Secure cross-chain messaging with Chainlink CCIP
                 </p>
               </div>
             </div>
           </div>
         ) : (
-          <>
-            {showAI ? (
-              <AIOptimization 
-                signer={signer} 
-                userBalance={userBalance}
-              />
-            ) : (
-              <LivePortfolio 
-                signer={signer} 
-                provider={provider}
-                onBalanceUpdate={(balance) => setUserBalance(balance)}
-              />
-            )}
-          </>
+          renderActiveView()
         )}
       </main>
 
@@ -348,13 +385,6 @@ export default function Home() {
           </a>
         </div>
       </footer>
-
-      <style jsx>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.5; }
-        }
-      `}</style>
     </div>
   );
 }

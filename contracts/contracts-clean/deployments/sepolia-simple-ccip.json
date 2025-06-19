@@ -1,0 +1,7 @@
+{
+  "network": "sepolia",
+  "timestamp": "2025-06-18T05:53:50.733Z",
+  "contracts": {
+    "SimpleCrossChainRouter": "0x2f9C42AFAF2De4c56Fe37e5fF80a2F80FEc3F589"
+  }
+}

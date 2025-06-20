@@ -1,0 +1,23 @@
+{
+  "network": "sepolia",
+  "automationHandler": "0x15E5A976D8ca503ab9756f6b3a9064cc0510EC31",
+  "chainlinkAutomationRegistry": "0x86EFBD0b6736Bed994962f9797049422A3A8E8Ad",
+  "deployedAt": "2025-06-20T04:31:30.088Z",
+  "configuration": {
+    "rebalanceInterval": "3600 seconds (1 hour)",
+    "apyThreshold": "2%",
+    "minRebalanceAmount": "1000 USDC"
+  },
+  "linkedContracts": {
+    "vault": "0xECbA31cf51F88BA5193186abf35225ECE097df44",
+    "crossChainManager": "0x75184db477E030aD316CabaD72e18292F350560C",
+    "aiOptimizer": "0xAF1b506b0dCD839785997DDE6A3fbaC7B3d6f41A"
+  },
+  "features": [
+    "Time-based rebalancing",
+    "APY difference triggers",
+    "Manual override capability",
+    "Chainlink Automation compatible",
+    "Gas-efficient checks"
+  ]
+}

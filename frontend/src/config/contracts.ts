@@ -6,7 +6,7 @@ export const CONTRACTS = {
     StrategyEngine: '0x6186d8180E85213fDEE20eb9f96ae94288Ff543d',
     AIOptimizer: '0xAF1b506b0dCD839785997DDE6A3fbaC7B3d6f41A', // ✅ DEPLOYED!
     CrossChainManager: '0x75184db477E030aD316CabaD72e18292F350560C', // ✅ DEPLOYED!
-    AutomationHandler: '', // Deploy this
+    AutomationHandler: '0x15E5A976D8ca503ab9756f6b3a9064cc0510EC31', // ✅ DEPLOYED!
   },
   mainnet: {
     USDC: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',

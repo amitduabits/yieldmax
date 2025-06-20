@@ -2,6 +2,11 @@
 import React, { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 import { ENHANCED_CONTRACTS, ENHANCED_STRATEGY_ABI, ORACLE_MANAGER_ABI, AUTOMATION_ABI } from '../../lib/contracts/enhanced-contracts';
+import { useContractRead, useContractWrite } from 'wagmi';
+import { CONTRACTS } from '@/config/contracts';
+import VaultABI from '../../src/abi/EnhancedYieldMaxVaultV2.json';
+import OptimizerABI from '../../src/abi/YieldMaxAIOptimizer.json';
+
 
 declare global {
   interface Window {
@@ -104,6 +109,29 @@ export const EnhancedPortfolio = () => {
       alert('Please install MetaMask!');
     }
   };
+
+   // Get current APY
+  const { data: currentAPY } = useContractRead({
+    address: CONTRACTS.sepolia.vault,
+    abi: VaultABI,
+    functionName: 'getCurrentAPY',
+  });
+
+  // Get AI recommendation
+  const { data: opportunity } = useContractRead({
+    address: CONTRACTS.sepolia.aiOptimizer,
+    abi: OptimizerABI,
+    functionName: 'getVaultOpportunity',
+    args: [CONTRACTS.sepolia.vault],
+  });
+
+  // Set risk tolerance
+  const { write: setRiskTolerance } = useContractWrite({
+    address: CONTRACTS.sepolia.vault,
+    abi: VaultABI,
+    functionName: 'setRiskTolerance',
+  });
+
 
   const fetchAllData = async (userAddress: string) => {
     if (!userAddress) return;

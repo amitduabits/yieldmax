@@ -1,0 +1,5 @@
+[
+  "function getStrategy(uint256 strategyId) external view returns (tuple(string name, address protocol, uint256 chainId, uint256 expectedAPY, uint256 riskScore, bool isActive))",
+  "function getVaultOpportunity(address vault) external view returns (tuple(uint256 strategyId, uint256 currentAPY, uint256 projectedAPY, uint256 confidence, uint256 gasEstimate, uint256 timestamp))",
+  "function strategyCount() external view returns (uint256)"
+]

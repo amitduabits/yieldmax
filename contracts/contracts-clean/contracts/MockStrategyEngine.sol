@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-// Deploy these contracts to make your frontend work immediately
-
 contract MockStrategyEngine {
     struct Strategy {
         string protocolName;
@@ -13,7 +11,7 @@ contract MockStrategyEngine {
         uint256 timestamp;
     }
     
-    function getCurrentStrategy() external pure returns (
+    function getCurrentStrategy() external view returns (
         string memory protocolName,
         uint256 allocation,
         uint256 expectedAPY,

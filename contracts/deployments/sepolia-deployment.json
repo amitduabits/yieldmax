@@ -1,8 +1,0 @@
-{
-  "network": "sepolia",
-  "usdc": "0x31D0c90C471F756FBC8a5E4f839d05bAF9a368dd",
-  "strategyEngine": "0x6186d8180E85213fDEE20eb9f96ae94288Ff543d",
-  "vault": "0xb8fBfe078fE486fD638478dC8C234003cEf8B452",
-  "deployer": "0x1Ae0947c15b5d9dc74ad69E07A82725E71740603",
-  "timestamp": "2025-06-12T06:02:07.308Z"
-}

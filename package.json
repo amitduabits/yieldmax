@@ -1,46 +1,20 @@
 {
-  "name": "yieldmax-frontend",
+  "name": "yieldmax",
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint",
-    "type-check": "tsc --noEmit"
-  },
-  "dependencies": {
-    "@rainbow-me/rainbowkit": "^1.3.7",
-    "@tanstack/react-query": "^5.80.7",
-    "@types/d3": "^7.4.3",
-    "axios": "^1.6.5",
-    "d3": "^7.8.5",
-    "ethers": "^5.7.2",
-    "framer-motion": "^10.18.0",
-    "lucide-react": "^0.309.0",
-    "next": "^14.0.4",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-toastify": "^11.0.5",
-    "recharts": "^2.10.4",
-    "styled-components": "^6.1.18",
-    "viem": "^1.21.4",
-    "wagmi": "^1.4.13"
+    "install:all": "npm run install:contracts && npm run install:frontend",
+    "install:contracts": "cd contracts && npm install",
+    "install:frontend": "cd frontend && npm install",
+    "dev": "concurrently \"npm run dev:contracts\" \"npm run dev:frontend\"",
+    "dev:contracts": "cd contracts && npm run compile",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build": "npm run build:contracts && npm run build:frontend",
+    "build:contracts": "cd contracts && npm run compile",
+    "build:frontend": "cd frontend && npm run build",
+    "deploy:testnet": "./scripts/deployment/deploy-all.sh"
   },
   "devDependencies": {
-    "@types/node": "^20.10.8",
-    "@types/react": "^18.2.47",
-    "@types/react-dom": "^18.2.18",
-    "@types/styled-components": "^5.1.34",
-    "autoprefixer": "^10.4.16",
-    "chalk": "^5.4.1",
-    "cli-table3": "^0.6.5",
-    "eslint": "^8.56.0",
-    "eslint-config-next": "^14.0.4",
-    "ora": "^8.2.0",
-    "postcss": "^8.4.33",
-    "tailwindcss": "^3.4.1",
-    "typescript": "^5.3.3",
-    "ws": "^8.18.2"
+    "concurrently": "^7.6.0"
   }
 }

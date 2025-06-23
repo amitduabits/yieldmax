@@ -1,45 +1,25 @@
 # YieldMax - Cross-Chain DeFi Yield Optimizer
 
-## 🚀 Quick Start
+YieldMax is an advanced DeFi protocol that automatically optimizes yields across multiple protocols and blockchain networks using AI-powered strategies and Chainlink services.
 
-### Prerequisites
+## 🚀 Features
+
+- **Automated Yield Optimization**: Automatically moves funds between Aave, Compound, Yearn, and Curve
+- **Cross-Chain Support**: Seamless yield farming across Ethereum, Arbitrum, Polygon, and Optimism
+- **AI-Powered Strategy**: Machine learning algorithms optimize for best risk-adjusted returns
+- **Chainlink Integration**: Automation, real-time data feeds, and secure cross-chain communication
+- **User-Friendly Interface**: Beautiful dashboard with real-time analytics
+
+## 📋 Prerequisites
+
 - Node.js 18+
 - Git
 - MetaMask wallet
+- Alchemy API key (for RPC endpoints)
 
-### Installation
+## 🛠️ Installation
 
-1. Install dependencies:
+1. Clone the repository:
 ```bash
-npm install
-cd frontend && npm install
-cd ../contracts && npm install
-cd ..
-```
-
-2. Set up environment variables:
-```bash
-cp .env.example .env
-cp frontend/.env.example frontend/.env
-cp contracts/.env.example contracts/.env
-# Edit the .env files with your API keys
-```
-
-3. Run the development server:
-```bash
-# In the root directory
-npm run dev
-```
-
-4. Open [http://localhost:3000](http://localhost:3000) in your browser
-
-## 🏗️ Architecture
-
-- **Frontend**: Next.js 14, React 18, TypeScript, Styled Components
-- **Smart Contracts**: Solidity 0.8.19, Hardhat, OpenZeppelin
-- **Blockchain**: Ethereum, Arbitrum, Polygon, Optimism
-- **Integrations**: Chainlink CCIP, RainbowKit, Wagmi
-
-## 📝 License
-
-MIT License
+git clone https://github.com/yourusername/yieldmax.git
+cd yieldmax

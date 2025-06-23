@@ -1,384 +1,328 @@
-// components/Automation/AutomationDashboard.tsx
 import React, { useState, useEffect } from 'react';
+import styled from 'styled-components';
+import { motion } from 'framer-motion';
+import { Clock, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
 import { ethers } from 'ethers';
 
-const AUTOMATION_HANDLER_ADDRESS = "0x15E5A976D8ca503ab9756f6b3a9064cc0510EC31";
+const Container = styled.div`
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+`;
 
-// ABI for your MockAutomationHandler contract
-const MOCK_AUTOMATION_ABI = [
-  "function getAutomationStatus() external view returns (bool enabled, uint256 nextRebalanceTime, uint256 totalRebalancesCount, bool shouldRebalanceNow)",
-  "function performUpkeep(bytes calldata performData) external",
-  "function checkUpkeep(bytes calldata) external view returns (bool upkeepNeeded, bytes memory performData)",
-  "function totalRebalances() external view returns (uint256)",
-  "function lastRebalanceTime() external view returns (uint256)",
-  "function rebalanceInterval() external view returns (uint256)",
-  "function simulateAutomation() external view returns (string memory status, uint256 timeTillNext, string memory recommendation)",
-  "function triggerManualRebalance() external"
-];
+const Header = styled.div`
+  text-align: center;
+  margin-bottom: 3rem;
+  
+  h1 {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+`;
 
-interface AutomationStatus {
-  needsUpkeep: boolean;
-  nextRebalanceTime: Date;
-  totalRebalances: number;
-  currentProtocol: string;
-  currentApy: number;
-}
+const StatusCard = styled(motion.div)`
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 16px;
+  padding: 2rem;
+  margin-bottom: 2rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+`;
 
-interface RebalanceEvent {
-  timestamp: Date;
-  from: string;
-  to: string;
-  reason: string;
+const StatusHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+  
+  h2 {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #f1f5f9;
+  }
+`;
+
+const StatusBadge = styled.div<{ status: 'active' | 'paused' | 'error' }>`
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  background: ${({ status }) => {
+    switch (status) {
+      case 'active': return 'rgba(16, 185, 129, 0.2)';
+      case 'paused': return 'rgba(251, 146, 60, 0.2)';
+      case 'error': return 'rgba(239, 68, 68, 0.2)';
+    }
+  }};
+  color: ${({ status }) => {
+    switch (status) {
+      case 'active': return '#10b981';
+      case 'paused': return '#fb923c';
+      case 'error': return '#ef4444';
+    }
+  }};
+`;
+
+const MetricsGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+`;
+
+const Metric = styled.div`
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 1rem;
+  
+  .label {
+    color: #64748b;
+    font-size: 0.75rem;
+    margin-bottom: 0.25rem;
+  }
+  
+  .value {
+    color: #f1f5f9;
+    font-size: 1.25rem;
+    font-weight: 600;
+  }
+`;
+
+const HistoryTable = styled.table`
+  width: 100%;
+  border-collapse: collapse;
+  
+  th {
+    text-align: left;
+    color: #94a3b8;
+    font-size: 0.875rem;
+    font-weight: 500;
+    padding: 0.75rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  
+  td {
+    padding: 0.75rem;
+    color: #f1f5f9;
+    font-size: 0.875rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  }
+  
+  tr:hover td {
+    background: rgba(255, 255, 255, 0.02);
+  }
+`;
+
+const ActionButton = styled.button`
+  padding: 0.5rem 1rem;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+  }
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+`;
+
+interface AutomationData {
+  upkeepId: string;
+  status: 'active' | 'paused' | 'error';
+  lastExecution: Date;
+  nextExecution: Date;
+  totalExecutions: number;
+  successfulExecutions: number;
+  failedExecutions: number;
+  balance: string;
+  minBalance: string;
 }
 
 export default function AutomationDashboard({ account }: { account: string | null }) {
-  const [automationStatus, setAutomationStatus] = useState<AutomationStatus | null>(null);
-  const [rebalanceHistory, setRebalanceHistory] = useState<RebalanceEvent[]>([]);
-  const [timeToNext, setTimeToNext] = useState('');
+  const [automationData, setAutomationData] = useState<AutomationData | null>(null);
+  const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [executeStatus, setExecuteStatus] = useState('');
-
-  const loadAutomationData = async () => {
-    if (!account) return;
-
-    try {
-      const provider = new ethers.providers.Web3Provider(window.ethereum);
-      const automationContract = new ethers.Contract(
-        AUTOMATION_HANDLER_ADDRESS,
-        MOCK_AUTOMATION_ABI,
-        provider
-      );
-
-      // Get automation status from your deployed contract
-      const [status, upkeepCheck, simulationData, lastRebalanceTime, rebalanceInterval] = await Promise.all([
-        automationContract.getAutomationStatus(),
-        automationContract.checkUpkeep("0x"),
-        automationContract.simulateAutomation(),
-        automationContract.lastRebalanceTime(),
-        automationContract.rebalanceInterval()
-      ]);
-
-      // Calculate next rebalance time
-      const nextRebalanceTimestamp = lastRebalanceTime.toNumber() + rebalanceInterval.toNumber();
-      const nextRebalanceTime = new Date(nextRebalanceTimestamp * 1000);
-      
-      // Get total rebalances count
-      const totalRebalanceCount = status.totalRebalancesCount?.toNumber() || 0;
-      
-      setAutomationStatus({
-        needsUpkeep: upkeepCheck.upkeepNeeded || status.shouldRebalanceNow,
-        nextRebalanceTime: nextRebalanceTime,
-        totalRebalances: totalRebalanceCount,
-        currentProtocol: totalRebalanceCount > 0 ? 'Yearn Finance' : 'Aave V3',
-        currentApy: totalRebalanceCount > 0 ? 9.85 : 7.74
-      });
-
-      // Set rebalance history if we have rebalances
-      if (totalRebalanceCount > 0) {
-        setRebalanceHistory([{
-          timestamp: new Date(lastRebalanceTime.toNumber() * 1000),
-          from: 'Aave V3',
-          to: 'Yearn Finance',
-          reason: 'Automated Optimization'
-        }]);
-      }
-    } catch (error) {
-      console.error("Error loading automation data:", error);
-      // Fallback to show some data
-      setAutomationStatus({
-        needsUpkeep: true,
-        nextRebalanceTime: new Date(Date.now() + 3600000),
-        totalRebalances: 0,
-        currentProtocol: 'Aave V3',
-        currentApy: 7.74
-      });
-    }
-  };
-
-  const executeRebalance = async () => {
-    if (!account) return;
-
-    setLoading(true);
-    setExecuteStatus('Executing rebalance...');
-    try {
-      const provider = new ethers.providers.Web3Provider(window.ethereum);
-      const signer = provider.getSigner();
-      const automationContract = new ethers.Contract(
-        AUTOMATION_HANDLER_ADDRESS,
-        MOCK_AUTOMATION_ABI,
-        signer
-      );
-
-      // Use triggerManualRebalance for manual execution
-      const tx = await automationContract.triggerManualRebalance();
-      setExecuteStatus('Transaction submitted...');
-      await tx.wait();
-
-      setExecuteStatus('Rebalance complete!');
-      // Force reload data after short delay
-      setTimeout(() => {
-        loadAutomationData();
-      }, 2000);
-      setTimeout(() => setExecuteStatus(''), 5000);
-    } catch (error) {
-      console.error('Rebalance failed:', error);
-      setExecuteStatus('Rebalance failed. Please try again.');
-      setTimeout(() => setExecuteStatus(''), 3000);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Update countdown timer
+  
   useEffect(() => {
-    const interval = setInterval(() => {
-      if (automationStatus?.nextRebalanceTime) {
-        const now = new Date();
-        const next = automationStatus.nextRebalanceTime;
-        const diff = next.getTime() - now.getTime();
-
-        if (diff > 0) {
-          const hours = Math.floor(diff / (1000 * 60 * 60));
-          const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-          const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-          setTimeToNext(`${hours}h ${minutes}m ${seconds}s`);
-        } else {
-          setTimeToNext('Ready for rebalance');
-        }
-      }
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [automationStatus]);
-
-  useEffect(() => {
-    loadAutomationData();
-    const interval = setInterval(loadAutomationData, 30000);
-    return () => clearInterval(interval);
+    if (account) {
+      loadAutomationData();
+    }
   }, [account]);
-
+  
+  const loadAutomationData = async () => {
+    // Mock data - replace with actual contract calls
+    setAutomationData({
+      upkeepId: '12345',
+      status: 'active',
+      lastExecution: new Date(Date.now() - 3600000),
+      nextExecution: new Date(Date.now() + 3600000),
+      totalExecutions: 156,
+      successfulExecutions: 154,
+      failedExecutions: 2,
+      balance: '8.5',
+      minBalance: '5.0'
+    });
+    
+    setHistory([
+      {
+        id: 1,
+        timestamp: new Date(Date.now() - 3600000),
+        action: 'Rebalance',
+        status: 'Success',
+        gasUsed: '145,232',
+        txHash: '0x1234...5678'
+      },
+      {
+        id: 2,
+        timestamp: new Date(Date.now() - 7200000),
+        action: 'Check',
+        status: 'Success',
+        gasUsed: '45,232',
+        txHash: '0x8765...4321'
+      }
+    ]);
+  };
+  
+  const handleManualTrigger = async () => {
+    setLoading(true);
+    // Implement manual trigger logic
+    setTimeout(() => {
+      setLoading(false);
+    }, 2000);
+  };
+  
   if (!account) {
     return (
-      <div style={{
-        padding: '40px',
-        textAlign: 'center',
-        color: '#94a3b8'
-      }}>
-        <h2 style={{ marginBottom: '20px' }}>⚡ Chainlink Automation</h2>
-        <p>Connect your wallet to view automation status</p>
-      </div>
+      <Container>
+        <Header>
+          <h1>Automation Dashboard</h1>
+          <p>Connect your wallet to view automation status</p>
+        </Header>
+      </Container>
     );
   }
-
+  
   return (
-    <div style={{
-      background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
-      borderRadius: '20px',
-      padding: '30px',
-      marginTop: '20px',
-      boxShadow: '0 10px 30px rgba(0, 0, 0, 0.3)'
-    }}>
-      <h2 style={{ color: '#fff', marginBottom: '30px', display: 'flex', alignItems: 'center' }}>
-        ⚡ Chainlink Automation
-        <span style={{
-          marginLeft: 'auto',
-          fontSize: '14px',
-          color: automationStatus?.needsUpkeep ? '#ef4444' : '#10b981',
-          background: automationStatus?.needsUpkeep ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)',
-          padding: '5px 15px',
-          borderRadius: '20px'
-        }}>
-          {automationStatus?.needsUpkeep ? '🔴 Needs Rebalance' : '🟢 Optimized'}
-        </span>
-      </h2>
-
-      {/* Status Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '20px', marginBottom: '30px' }}>
-        <div style={{
-          background: 'rgba(59, 130, 246, 0.1)',
-          border: '1px solid rgba(59, 130, 246, 0.3)',
-          borderRadius: '15px',
-          padding: '20px'
-        }}>
-          <p style={{ color: '#94a3b8', marginBottom: '10px' }}>Next Rebalance</p>
-          <h3 style={{ color: '#3b82f6', fontSize: '24px', margin: 0 }}>
-            {timeToNext || 'Loading...'}
-          </h3>
-        </div>
-
-        <div style={{
-          background: 'rgba(16, 185, 129, 0.1)',
-          border: '1px solid rgba(16, 185, 129, 0.3)',
-          borderRadius: '15px',
-          padding: '20px'
-        }}>
-          <p style={{ color: '#94a3b8', marginBottom: '10px' }}>Total Rebalances</p>
-          <h3 style={{ color: '#10b981', fontSize: '32px', margin: 0 }}>
-            {automationStatus?.totalRebalances || 0}
-          </h3>
-        </div>
-
-        <div style={{
-          background: 'rgba(139, 92, 246, 0.1)',
-          border: '1px solid rgba(139, 92, 246, 0.3)',
-          borderRadius: '15px',
-          padding: '20px'
-        }}>
-          <p style={{ color: '#94a3b8', marginBottom: '10px' }}>Current APY</p>
-          <h3 style={{ color: '#8b5cf6', fontSize: '28px', margin: 0 }}>
-            {automationStatus?.currentApy?.toFixed(2) || '0.00'}%
-          </h3>
-        </div>
-      </div>
-
-      {/* Rebalance Alert */}
-      {automationStatus?.needsUpkeep && (
-        <div style={{
-          background: 'rgba(245, 158, 11, 0.1)',
-          border: '1px solid rgba(245, 158, 11, 0.3)',
-          borderRadius: '15px',
-          padding: '20px',
-          marginBottom: '30px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}>
-          <div>
-            <h4 style={{ color: '#f59e0b', margin: '0 0 10px 0' }}>
-              🔄 Rebalance Opportunity Detected
-            </h4>
-            <p style={{ color: '#fbbf24', margin: 0 }}>
-              Better yields available! Execute rebalance to optimize returns.
-            </p>
-          </div>
-          <button
-            onClick={executeRebalance}
-            disabled={loading}
-            style={{
-              background: loading ? '#6b7280' : '#f59e0b',
-              color: loading ? '#d1d5db' : '#78350f',
-              border: 'none',
-              borderRadius: '10px',
-              padding: '12px 24px',
-              fontSize: '16px',
-              fontWeight: 'bold',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              transition: 'all 0.3s ease'
-            }}
+    <Container>
+      <Header>
+        <h1>Automation Dashboard</h1>
+        <p>Monitor and manage your automated yield optimization</p>
+      </Header>
+      
+      {automationData && (
+        <>
+          <StatusCard
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
           >
-            {loading ? 'Executing...' : 'Execute Rebalance'}
-          </button>
-        </div>
-      )}
-
-      {/* Execution Status */}
-      {executeStatus && (
-        <div style={{
-          padding: '12px',
-          marginBottom: '20px',
-          background: executeStatus.includes('complete') ? 'rgba(16, 185, 129, 0.1)' : 'rgba(59, 130, 246, 0.1)',
-          border: `1px solid ${executeStatus.includes('complete') ? 'rgba(16, 185, 129, 0.3)' : 'rgba(59, 130, 246, 0.3)'}`,
-          borderRadius: '8px',
-          color: executeStatus.includes('complete') ? '#10b981' : '#3b82f6',
-          textAlign: 'center',
-          fontWeight: 'bold'
-        }}>
-          {executeStatus}
-        </div>
-      )}
-
-      {/* Rebalance History */}
-      <div style={{
-        background: 'rgba(255, 255, 255, 0.05)',
-        borderRadius: '15px',
-        padding: '20px'
-      }}>
-        <h3 style={{ color: '#fff', marginBottom: '20px' }}>
-          📊 Rebalance History
-        </h3>
-
-        {rebalanceHistory.length > 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {rebalanceHistory.map((event, idx) => (
-              <div key={idx} style={{
-                background: 'rgba(255, 255, 255, 0.03)',
-                borderRadius: '10px',
-                padding: '15px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center'
-              }}>
-                <div>
-                  <p style={{ color: '#fff', margin: 0 }}>
-                    {event.timestamp.toLocaleString()}
-                  </p>
-                  <p style={{ color: '#94a3b8', fontSize: '14px', marginTop: '5px' }}>
-                    {event.from} → {event.to} • Reason: {event.reason}
-                  </p>
+            <StatusHeader>
+              <h2><Clock size={24} /> Chainlink Automation Status</h2>
+              <StatusBadge status={automationData.status}>
+                {automationData.status === 'active' && <CheckCircle size={16} />}
+                {automationData.status === 'paused' && <AlertCircle size={16} />}
+                {automationData.status === 'error' && <AlertCircle size={16} />}
+                {automationData.status.toUpperCase()}
+              </StatusBadge>
+            </StatusHeader>
+            
+            <MetricsGrid>
+              <Metric>
+                <div className="label">Upkeep ID</div>
+                <div className="value">#{automationData.upkeepId}</div>
+              </Metric>
+              <Metric>
+                <div className="label">Last Execution</div>
+                <div className="value">{automationData.lastExecution.toLocaleTimeString()}</div>
+              </Metric>
+              <Metric>
+                <div className="label">Next Execution</div>
+                <div className="value">{automationData.nextExecution.toLocaleTimeString()}</div>
+              </Metric>
+              <Metric>
+                <div className="label">Success Rate</div>
+                <div className="value">
+                  {((automationData.successfulExecutions / automationData.totalExecutions) * 100).toFixed(1)}%
                 </div>
-                <div style={{
-                  color: '#10b981',
-                  fontWeight: 'bold'
-                }}>
-                  Optimized ✓
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p style={{ color: '#94a3b8', textAlign: 'center' }}>
-            No rebalances yet. First one coming soon!
-          </p>
-        )}
-      </div>
-
-      {/* Automation Info */}
-      <div style={{
-        marginTop: '20px',
-        padding: '15px',
-        background: 'rgba(59, 130, 246, 0.1)',
-        border: '1px solid rgba(59, 130, 246, 0.3)',
-        borderRadius: '10px',
-        textAlign: 'center'
-      }}>
-        <p style={{ color: '#3b82f6', margin: 0 }}>
-          ⚡ Powered by Chainlink Automation - Rebalancing 24/7
-        </p>
-      </div>
-
-      {/* Current Strategy Info */}
-      <div style={{
-        marginTop: '20px',
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        gap: '20px'
-      }}>
-        <div style={{
-          background: 'rgba(255, 255, 255, 0.05)',
-          borderRadius: '10px',
-          padding: '15px'
-        }}>
-          <p style={{ color: '#94a3b8', fontSize: '14px', marginBottom: '5px' }}>
-            Current Protocol
-          </p>
-          <p style={{ color: '#fff', fontSize: '18px', fontWeight: 'bold', margin: 0 }}>
-            {automationStatus?.currentProtocol || 'Loading...'}
-          </p>
-        </div>
-        <div style={{
-          background: 'rgba(255, 255, 255, 0.05)',
-          borderRadius: '10px',
-          padding: '15px'
-        }}>
-          <p style={{ color: '#94a3b8', fontSize: '14px', marginBottom: '5px' }}>
-            Automation Address
-          </p>
-          <p style={{ color: '#fff', fontSize: '12px', fontFamily: 'monospace', margin: 0 }}>
-            {AUTOMATION_HANDLER_ADDRESS.slice(0, 6)}...
-            {AUTOMATION_HANDLER_ADDRESS.slice(-4)}
-          </p>
-        </div>
-      </div>
-    </div>
+              </Metric>
+              <Metric>
+                <div className="label">LINK Balance</div>
+                <div className="value">{automationData.balance} LINK</div>
+              </Metric>
+              <Metric>
+                <div className="label">Total Executions</div>
+                <div className="value">{automationData.totalExecutions}</div>
+              </Metric>
+            </MetricsGrid>
+            
+            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+              <ActionButton onClick={handleManualTrigger} disabled={loading}>
+                <RefreshCw size={16} style={{ marginRight: '0.5rem' }} />
+                {loading ? 'Triggering...' : 'Manual Trigger'}
+              </ActionButton>
+            </div>
+          </StatusCard>
+          
+          <StatusCard
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
+            <h2 style={{ marginBottom: '1.5rem', color: '#f1f5f9' }}>
+              Execution History
+            </h2>
+            
+            <HistoryTable>
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Action</th>
+                  <th>Status</th>
+                  <th>Gas Used</th>
+                  <th>Transaction</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map((item) => (
+                  <tr key={item.id}>
+                    <td>{item.timestamp.toLocaleString()}</td>
+                    <td>{item.action}</td>
+                    <td>
+                      <span style={{ color: item.status === 'Success' ? '#10b981' : '#ef4444' }}>
+                        {item.status}
+                      </span>
+                    </td>
+                    <td>{item.gasUsed}</td>
+                    <td>
+                      <a 
+                        href={`https://sepolia.etherscan.io/tx/${item.txHash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: '#3b82f6' }}
+                      >
+                        {item.txHash}
+                      </a>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </HistoryTable>
+          </StatusCard>
+        </>
+      )}
+    </Container>
   );
 }

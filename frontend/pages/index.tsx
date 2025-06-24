@@ -13,7 +13,8 @@ const AIOptimization = dynamic(() => import('../components/AIOptimization/AIOpti
   ssr: false,
 });
 
-const CrossChainDashboard = dynamic(() => import('../components/CrossChain/CrossChainDashboard'), {
+// Use the new Bridge component instead of CrossChainDashboard
+const Bridge = dynamic(() => import('../components/Bridge/Bridge'), {
   ssr: false,
 });
 
@@ -81,7 +82,7 @@ const TabButton = styled.button<{ $active?: boolean }>`
   }
 `;
 
-type TabType = 'portfolio' | 'ai' | 'crosschain';
+type TabType = 'portfolio' | 'ai' | 'bridge';
 
 export default function Home() {
   const { address } = useAccount();
@@ -102,8 +103,8 @@ export default function Home() {
         return <Portfolio />;
       case 'ai':
         return <AIOptimization account={address} />;
-      case 'crosschain':
-        return <CrossChainDashboard account={address} />;
+      case 'bridge':
+        return <Bridge />; // Use the new Bridge component
       default:
         return <Portfolio />;
     }
@@ -131,10 +132,10 @@ export default function Home() {
               🧠 AI Optimization
             </TabButton>
             <TabButton 
-              $active={activeTab === 'crosschain'} 
-              onClick={() => setActiveTab('crosschain')}
+              $active={activeTab === 'bridge'} 
+              onClick={() => setActiveTab('bridge')}
             >
-              🔗 Cross-Chain
+              🌉 Bridge
             </TabButton>
           </NavTabs>
           

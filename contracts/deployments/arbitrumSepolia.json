@@ -1,0 +1,41 @@
+{
+  "network": "arbitrumSepolia",
+  "chainId": 421614,
+  "contracts": {
+    "vault": "0xc3bABeCE2Bb9db67a27e3F39fb9E2D20051FC688",
+    "strategyEngine": "0x74De92CFa84BEAEd06D7E4f6f6f60E2b966a1113",
+    "crossChainManager": "0xDaD9ddaB8f38f0aE3b65F4bC38D5B51005a48a4E",
+    "usdc": "0xaa903F0633A96B2f3466FEb81D984a14C08e979B",
+    "chainlinkRouter": "0x2a9C5afB0d0e4BAb2BCdaE109EC4b0c4Be15a165",
+    "linkToken": "0xb1D4538B4571d411F07960EF2838Ce337FE1E80E",
+    "ccipBridge": "0xaCA350DED1bA68EA5872750Ed6b2393021d6116B"
+  },
+  "deployer": "0x919Cb3B8A6DC639431960B80EaD34704A9343BB2",
+  "timestamp": "2025-06-24T08:35:39.808Z",
+  "ccip": {
+    "router": "0x2a9C5afB0d0e4BAb2BCdaE109EC4b0c4Be15a165",
+    "chainSelector": "3478487238524512106",
+    "allowedChains": [
+      {
+        "name": "sepolia",
+        "selector": "16015286601757825753"
+      },
+      {
+        "name": "polygon-amoy",
+        "selector": "16281711391670634445"
+      },
+      {
+        "name": "polygonAmoy",
+        "selector": "16281711391670634445"
+      },
+      {
+        "name": "optimism-sepolia",
+        "selector": "5224473277236331295"
+      },
+      {
+        "name": "optimismSepolia",
+        "selector": "5224473277236331295"
+      }
+    ]
+  }
+}

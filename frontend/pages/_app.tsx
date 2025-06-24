@@ -1,37 +1,15 @@
 // pages/_app.tsx
 import { useEffect, useState } from 'react';
-import { WagmiConfig, createConfig, configureChains } from 'wagmi';
-import { sepolia, arbitrumSepolia } from 'wagmi/chains';
-import { alchemyProvider } from 'wagmi/providers/alchemy';
-import { publicProvider } from 'wagmi/providers/public';
-import { getDefaultWallets, RainbowKitProvider, darkTheme } from '@rainbow-me/rainbowkit';
+import type { AppProps } from 'next/app';
+import { WagmiConfig } from 'wagmi';
+import { RainbowKitProvider, darkTheme } from '@rainbow-me/rainbowkit';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { wagmiConfig, chains } from '../lib/wagmi';
+import Layout from '../components/common/Layout';
 import '@rainbow-me/rainbowkit/styles.css';
 import '../styles/globals.css';
 
-// Configure chains with proper providers
-const { chains, publicClient, webSocketPublicClient } = configureChains(
-  [sepolia, arbitrumSepolia],
-  [
-    // Add Alchemy provider with a proper API key
-    alchemyProvider({ apiKey: process.env.NEXT_PUBLIC_ALCHEMY_KEY || '2v7w7guIaS7gpQKw7GTniqIhQrwIAAn_' }),
-    // Remove public provider as it's causing issues
-  ]
-);
-
-const { connectors } = getDefaultWallets({
-  appName: 'YieldMax',
-  projectId: process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID || 'YOUR_PROJECT_ID',
-  chains,
-});
-
-const wagmiConfig = createConfig({
-  autoConnect: true,
-  connectors,
-  publicClient,
-  webSocketPublicClient,
-});
-
+// Create a client for React Query
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -42,9 +20,10 @@ const queryClient = new QueryClient({
   },
 });
 
-function MyApp({ Component, pageProps }: any) {
+function MyApp({ Component, pageProps }: AppProps) {
   const [mounted, setMounted] = useState(false);
 
+  // Prevent hydration mismatch
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -64,7 +43,9 @@ function MyApp({ Component, pageProps }: any) {
         })}
       >
         <QueryClientProvider client={queryClient}>
-          <Component {...pageProps} />
+          <Layout>
+            <Component {...pageProps} />
+          </Layout>
         </QueryClientProvider>
       </RainbowKitProvider>
     </WagmiConfig>

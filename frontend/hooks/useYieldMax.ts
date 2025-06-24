@@ -27,26 +27,37 @@ export function useYieldMax() {
 
   // Get contract instances
   const getContracts = () => {
-    const vaultAddress = CONTRACTS.sepolia.YieldMaxVault;
-    const usdcAddress = CONTRACTS.sepolia.USDC;
+    // Fix: Use consistent naming
+    const vaultAddress = CONTRACTS.sepolia.vault; // Changed from YieldMaxVault
+    const usdcAddress = CONTRACTS.sepolia.usdc;
     
-    if (!provider) return null;
+    if (!provider) {
+      console.error('Provider not available');
+      return null;
+    }
 
-    const vaultContract = new ethers.Contract(vaultAddress, VAULT_ABI, provider);
-    const usdcContract = new ethers.Contract(usdcAddress, ERC20_ABI, provider);
-    
-    return { vaultContract, usdcContract, vaultAddress, usdcAddress };
+    try {
+      const vaultContract = new ethers.Contract(vaultAddress, VAULT_ABI, provider);
+      const usdcContract = new ethers.Contract(usdcAddress, ERC20_ABI, provider);
+      
+      return { vaultContract, usdcContract, vaultAddress, usdcAddress };
+    } catch (error) {
+      console.error('Error creating contracts:', error);
+      return null;
+    }
   };
 
   // Fetch vault data
   const fetchVaultData = async () => {
     if (!isConnected || !address) {
+      console.log('Wallet not connected');
       setVaultData(prev => ({ ...prev, isLoading: false }));
       return;
     }
 
     const contracts = getContracts();
     if (!contracts) {
+      console.error('Contracts not initialized');
       setVaultData(prev => ({ ...prev, isLoading: false }));
       return;
     }
@@ -54,6 +65,7 @@ export function useYieldMax() {
     try {
       const { vaultContract, usdcContract, vaultAddress } = contracts;
 
+      // Add error handling for each contract call
       const [
         totalAssets,
         totalShares,
@@ -62,12 +74,12 @@ export function useYieldMax() {
         allowance,
         lastRebalance,
       ] = await Promise.all([
-        vaultContract.totalAssets(),
-        vaultContract.totalShares(),
-        vaultContract.getUserShares(address),
-        usdcContract.balanceOf(address),
-        usdcContract.allowance(address, vaultAddress),
-        vaultContract.lastRebalance(),
+        vaultContract.totalAssets().catch(() => ethers.BigNumber.from(0)),
+        vaultContract.totalSupply().catch(() => ethers.BigNumber.from(0)), // Changed from totalShares
+        vaultContract.balanceOf(address).catch(() => ethers.BigNumber.from(0)), // Changed from getUserShares
+        usdcContract.balanceOf(address).catch(() => ethers.BigNumber.from(0)),
+        usdcContract.allowance(address, vaultAddress).catch(() => ethers.BigNumber.from(0)),
+        vaultContract.lastRebalance().catch(() => ethers.BigNumber.from(0)),
       ]);
 
       setVaultData({
@@ -101,11 +113,18 @@ export function useYieldMax() {
 
       const amountWei = ethers.utils.parseUnits(amount, 6);
 
-      // Approve USDC
-      const approveTx = await usdcWithSigner.approve(vaultAddress, amountWei);
-      await approveTx.wait();
+      // Check current allowance
+      const currentAllowance = await usdcContract.allowance(address, vaultAddress);
+      
+      // Only approve if needed
+      if (currentAllowance.lt(amountWei)) {
+        console.log('Approving USDC...');
+        const approveTx = await usdcWithSigner.approve(vaultAddress, amountWei);
+        await approveTx.wait();
+      }
 
       // Deposit
+      console.log('Depositing...');
       const depositTx = await vaultWithSigner.deposit(amountWei, address);
       await depositTx.wait();
 
@@ -113,9 +132,10 @@ export function useYieldMax() {
       await fetchVaultData();
       return depositTx;
     } catch (error: any) {
+      console.error('Deposit error:', error);
       setTxStatus({ 
         isLoading: false, 
-        error: error.message || 'Deposit failed', 
+        error: error.reason || error.message || 'Deposit failed', 
         success: false 
       });
       throw error;
@@ -137,16 +157,18 @@ export function useYieldMax() {
 
       const sharesWei = ethers.utils.parseUnits(shares, 6);
 
-      const withdrawTx = await vaultWithSigner.withdraw(sharesWei);
+      // Use redeem instead of withdraw for ERC-4626
+      const withdrawTx = await vaultWithSigner.redeem(sharesWei, address, address);
       await withdrawTx.wait();
 
       setTxStatus({ isLoading: false, error: null, success: true });
       await fetchVaultData();
       return withdrawTx;
     } catch (error: any) {
+      console.error('Withdraw error:', error);
       setTxStatus({ 
         isLoading: false, 
-        error: error.message || 'Withdrawal failed', 
+        error: error.reason || error.message || 'Withdrawal failed', 
         success: false 
       });
       throw error;
@@ -154,8 +176,10 @@ export function useYieldMax() {
   };
 
   useEffect(() => {
-    fetchVaultData();
-  }, [isConnected, address]);
+    if (isConnected && provider) {
+      fetchVaultData();
+    }
+  }, [isConnected, address, provider]);
 
   return {
     vaultData,

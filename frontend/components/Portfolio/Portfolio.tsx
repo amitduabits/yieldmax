@@ -1,28 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { useAccount, useContractRead, useContractWrite, useWaitForTransaction } from 'wagmi';
-import { parseUnits, formatUnits } from 'viem';
-import { ethers } from 'ethers';
+import React, { useState } from 'react';
 import styled from 'styled-components';
 import { motion } from 'framer-motion';
-import { TrendingUp, DollarSign, Activity, Shield, RefreshCw } from 'lucide-react';
+import { DollarSign, TrendingUp, Shield, Activity } from 'lucide-react';
+import { useAccount } from 'wagmi';
 
-// Contract configuration - UPDATED WITH YOUR DEPLOYED ADDRESSES
-const CONTRACTS = {
-  sepolia: {
-    vault: '0x8B388c1E9f6b3Ef66f5D3E81d90CD1e5d65AC0BC',
-    strategyEngine: '0xE113312320A6Fb5cf78ac7e0C8B72E9bc788aC4f',
-    usdc: '0x99f8B38514d22c54982b4be93495735bfcCE23b9'
-  }
-};
-
-// Import ABIs from the addresses file instead of defining them here
-import { VAULT_ABI, ERC20_ABI, STRATEGY_ABI } from '../../lib/contracts/addresses';
-
-// Styled Components
 const Container = styled.div`
-  max-width: 1200px;
+  width: 100%;
+  max-width: 1400px;
   margin: 0 auto;
-  padding: 2rem;
 `;
 
 const Header = styled.div`
@@ -30,162 +15,219 @@ const Header = styled.div`
   margin-bottom: 3rem;
   
   h1 {
-    font-size: 3rem;
-    margin-bottom: 1rem;
+    font-size: 2.5rem;
+    font-weight: bold;
+    margin-bottom: 0.5rem;
     background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
+  }
+  
+  p {
+    color: #64748b;
+    font-size: 1.125rem;
+    margin-bottom: 1rem;
+  }
+`;
+
+const RefreshButton = styled.button`
+  padding: 0.5rem 1.5rem;
+  background: rgba(59, 130, 246, 0.2);
+  border: 1px solid rgba(59, 130, 246, 0.5);
+  border-radius: 8px;
+  color: #60a5fa;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  
+  &:hover {
+    background: rgba(59, 130, 246, 0.3);
+    transform: translateY(-1px);
   }
 `;
 
 const StatsGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 1.5rem;
   margin-bottom: 3rem;
 `;
 
 const StatCard = styled(motion.div)`
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(10px);
-  border-radius: 16px;
-  padding: 1.5rem;
+  background: #1e293b;
   border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 2rem;
   
   h3 {
-    color: #94a3b8;
+    color: #64748b;
     font-size: 0.875rem;
-    margin-bottom: 0.5rem;
+    font-weight: 500;
+    margin-bottom: 0.75rem;
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
   
   .value {
-    font-size: 2rem;
+    font-size: 2.5rem;
     font-weight: bold;
-    color: #f1f5f9;
+    color: #f8fafc;
+    margin-bottom: 0.5rem;
+    line-height: 1;
   }
   
   .subtext {
-    color: #64748b;
+    color: #475569;
     font-size: 0.875rem;
-    margin-top: 0.5rem;
   }
 `;
 
-const ActionSection = styled.div`
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(10px);
+const ActionCard = styled.div`
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 16px;
   padding: 2rem;
-  margin-bottom: 2rem;
+  max-width: 800px;
+  margin: 0 auto;
 `;
 
 const TabContainer = styled.div`
   display: flex;
-  gap: 1rem;
+  gap: 0;
   margin-bottom: 2rem;
+  background: rgba(30, 41, 59, 0.5);
+  border-radius: 12px;
+  padding: 0.25rem;
 `;
 
 const Tab = styled.button<{ $active: boolean }>`
+  flex: 1;
   padding: 0.75rem 1.5rem;
   border-radius: 8px;
   border: none;
-  background: ${props => props.$active ? 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)' : 'rgba(255, 255, 255, 0.1)'};
-  color: white;
+  background: ${props => props.$active ? 
+    'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)' : 'transparent'};
+  color: ${props => props.$active ? 'white' : '#64748b'};
   cursor: pointer;
   font-weight: 500;
-  transition: all 0.3s ease;
+  font-size: 1rem;
+  transition: all 0.2s ease;
   
   &:hover {
-    background: ${props => props.$active ? 
-      'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)' : 
-      'rgba(255, 255, 255, 0.15)'
-    };
+    color: ${props => props.$active ? 'white' : '#94a3b8'};
   }
 `;
 
 const InputGroup = styled.div`
-  margin-bottom: 1.5rem;
-  
-  label {
-    display: block;
+  .label {
     color: #94a3b8;
-    margin-bottom: 0.5rem;
     font-size: 0.875rem;
+    margin-bottom: 0.75rem;
+    display: block;
   }
   
-  .input-wrapper {
+  .input-container {
     display: flex;
-    gap: 1rem;
+    align-items: center;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 0.25rem;
+    margin-bottom: 1rem;
+    transition: all 0.2s;
+    
+    &:focus-within {
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
   }
   
   input {
     flex: 1;
-    padding: 0.75rem 1rem;
-    border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    background: rgba(255, 255, 255, 0.05);
+    padding: 1rem;
+    background: transparent;
+    border: none;
     color: white;
-    font-size: 1rem;
+    font-size: 1.25rem;
+    font-weight: 500;
     
     &:focus {
       outline: none;
-      border-color: #3b82f6;
+    }
+    
+    &::placeholder {
+      color: #475569;
     }
   }
   
-  button {
-    padding: 0.75rem 1.5rem;
-    border-radius: 8px;
-    border: none;
-    background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
-    color: white;
-    cursor: pointer;
+  .currency {
+    padding: 0 1rem;
+    color: #64748b;
     font-weight: 500;
-    transition: all 0.3s ease;
-    
-    &:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
-    }
-    
-    &:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
   }
 `;
 
-const ProtocolInfo = styled.div`
-  background: rgba(255, 255, 255, 0.05);
+const ActionButton = styled.button`
+  width: 100%;
+  padding: 1rem;
   border-radius: 12px;
-  padding: 1.5rem;
-  margin-top: 2rem;
+  border: none;
+  background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+  color: white;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
   
-  h3 {
-    color: #f1f5f9;
-    margin-bottom: 1rem;
+  &:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(59, 130, 246, 0.3);
   }
   
-  .protocol-stats {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1rem;
+  &:active:not(:disabled) {
+    transform: translateY(0);
+  }
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+`;
+
+const BalanceInfo = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: rgba(15, 23, 42, 0.4);
+  border-radius: 8px;
+  
+  .label {
+    color: #64748b;
+    font-size: 0.875rem;
+  }
+  
+  .balance {
+    color: #f8fafc;
+    font-weight: 500;
+  }
+  
+  .max-button {
+    color: #3b82f6;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: color 0.2s;
     
-    .stat {
-      h4 {
-        color: #94a3b8;
-        font-size: 0.875rem;
-        margin-bottom: 0.25rem;
-      }
-      
-      p {
-        color: #f1f5f9;
-        font-size: 1.25rem;
-        font-weight: 600;
-      }
+    &:hover {
+      color: #60a5fa;
     }
   }
 `;
@@ -196,174 +238,34 @@ export default function Portfolio() {
   const [amount, setAmount] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   
-  // Vault data
-  const { data: totalAssets } = useContractRead({
-    address: CONTRACTS.sepolia.vault,
-    abi: VAULT_ABI,
-    functionName: 'totalAssets',
-    watch: true,
-  });
+  // Mock data
+  const userBalance = 80.46;
+  const ymUSDCBalance = 0.0000000897;
+  const currentAPY = 5.20;
+  const currentProtocol = 'Aave';
+  const riskScore = 20;
   
-  const { data: userShares } = useContractRead({
-    address: CONTRACTS.sepolia.vault,
-    abi: VAULT_ABI,
-    functionName: 'balanceOf',
-    args: address ? [address] : undefined,
-    watch: true,
-  });
-  
-  // Add refetch functions
-  const { data: userBalance, refetch: refetchBalance } = useContractRead({
-    address: CONTRACTS.sepolia.usdc,
-    abi: ERC20_ABI,
-    functionName: 'balanceOf',
-    args: address ? [address] : undefined,
-    watch: true,
-  });
-  
-  // Add a manual refresh button
-  const refreshData = () => {
-    refetchBalance();
-    window.location.reload(); // Force complete refresh
-  };
-  
-  const { data: strategyData } = useContractRead({
-    address: CONTRACTS.sepolia.strategyEngine,
-    abi: STRATEGY_ABI,
-    functionName: 'getCurrentStrategy',
-    watch: true,
-  });
-  
-  // Contract writes
-  const { write: approve, data: approveData } = useContractWrite({
-    address: CONTRACTS.sepolia.usdc,
-    abi: ERC20_ABI,
-    functionName: 'approve',
-  });
-  
-  const { write: deposit, data: depositData } = useContractWrite({
-    address: CONTRACTS.sepolia.vault,
-    abi: VAULT_ABI,
-    functionName: 'deposit',
-  });
-  
-  const { write: withdraw, data: withdrawData } = useContractWrite({
-    address: CONTRACTS.sepolia.vault,
-    abi: VAULT_ABI,
-    functionName: 'withdraw',
-  });
-  
-  // Wait for transactions
-  const { isLoading: isApproving } = useWaitForTransaction({
-    hash: approveData?.hash,
-  });
-  
-  const { isLoading: isDepositing } = useWaitForTransaction({
-    hash: depositData?.hash,
-  });
-  
-  const { isLoading: isWithdrawing } = useWaitForTransaction({
-    hash: withdrawData?.hash,
-  });
-  
-  // Calculations
-  const userAssetValue = userShares && totalAssets && Number(userShares) > 0
-    ? (Number(userShares) * Number(totalAssets)) / (10 ** 18)
-    : 0;
-  
-  const currentAPY = strategyData ? Number(strategyData[2]) / 100 : 0;
-  const currentProtocol = strategyData ? strategyData[0] : 'Loading...';
-  const riskScore = strategyData ? Number(strategyData[3]) : 0;
-  
-  const handleDirectDeposit = async () => {
-    if (!window.ethereum || !amount) return;
-    
-    try {
-      // Get the provider and signer from MetaMask directly
-      const provider = new ethers.providers.Web3Provider(window.ethereum);
-      const signer = provider.getSigner();
-      const userAddress = await signer.getAddress();
-      
-      // Contract addresses
-      const vaultAddress = CONTRACTS.sepolia.vault;
-      const usdcAddress = CONTRACTS.sepolia.usdc;
-      
-      // Create contract instances
-      const vaultContract = new ethers.Contract(
-        vaultAddress,
-        ['function deposit(uint256 assets, address receiver) returns (uint256)'],
-        signer
-      );
-      
-      const usdcContract = new ethers.Contract(
-        usdcAddress,
-        [
-          'function approve(address spender, uint256 amount) returns (bool)',
-          'function allowance(address owner, address spender) view returns (uint256)'
-        ],
-        signer
-      );
-      
-      // Parse amount (USDC has 6 decimals)
-      const amountWei = ethers.utils.parseUnits(amount, 6);
-      
-      // Check current allowance
-      const currentAllowance = await usdcContract.allowance(userAddress, vaultAddress);
-      console.log('Current allowance:', ethers.utils.formatUnits(currentAllowance, 6));
-      
-      // If allowance is insufficient, approve first
-      if (currentAllowance.lt(amountWei)) {
-        console.log('Approving USDC...');
-        const approveTx = await usdcContract.approve(vaultAddress, amountWei);
-        console.log('Approval tx:', approveTx.hash);
-        await approveTx.wait();
-        console.log('Approval confirmed!');
-      }
-      
-      // Now deposit
-      console.log('Depositing', amount, 'USDC...');
-      const depositTx = await vaultContract.deposit(amountWei, userAddress);
-      console.log('Deposit tx:', depositTx.hash);
-      
-      // Wait for confirmation
-      const receipt = await depositTx.wait();
-      console.log('Deposit confirmed!', receipt);
-      
-      // Clear the form and refresh
-      setAmount('');
-      alert('Deposit successful! Refreshing page...');
-      setTimeout(() => window.location.reload(), 2000);
-      
-    } catch (error) {
-      console.error('Deposit error:', error);
-      alert('Deposit failed: ' + (error as any).message);
+  const handleMaxClick = () => {
+    if (activeTab === 'deposit') {
+      setAmount(userBalance.toString());
+    } else {
+      setAmount(ymUSDCBalance.toString());
     }
   };
   
-  // Watch for deposit completion
-  useEffect(() => {
-    if (depositData?.hash && isDepositing === false) {
-      // Deposit completed, clear form and refresh
-      setAmount('');
-      setIsLoading(false);
-      // Force a refresh of all data
-      window.location.reload();
-    }
-  }, [depositData, isDepositing]);
-  
-  const handleWithdraw = async () => {
-    if (!amount || !address) return;
+  const handleAction = async () => {
+    if (!amount || parseFloat(amount) <= 0) return;
     
+    setIsLoading(true);
     try {
-      setIsLoading(true);
-      const parsedAmount = parseUnits(amount, 6);
+      // Simulate transaction
+      await new Promise(resolve => setTimeout(resolve, 2000));
       
-      await withdraw({
-        args: [parsedAmount, address, address],
-      });
-      
+      alert(`${activeTab === 'deposit' ? 'Deposit' : 'Withdrawal'} successful!`);
+      setAmount('');
     } catch (error) {
-      console.error('Withdraw failed:', error);
+      console.error('Transaction failed:', error);
+      alert('Transaction failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -385,21 +287,9 @@ export default function Portfolio() {
       <Header>
         <h1>YieldMax Portfolio</h1>
         <p>Automated yield optimization across DeFi protocols</p>
-        <button 
-          onClick={() => window.location.reload()}
-          style={{
-            marginTop: '1rem',
-            padding: '0.5rem 1rem',
-            background: 'rgba(59, 130, 246, 0.2)',
-            border: '1px solid rgba(59, 130, 246, 0.5)',
-            borderRadius: '8px',
-            color: '#60a5fa',
-            cursor: 'pointer',
-            fontSize: '0.875rem'
-          }}
-        >
-          🔄 Refresh Data
-        </button>
+        <RefreshButton onClick={() => window.location.reload()}>
+          <span>📊</span> Refresh Data
+        </RefreshButton>
       </Header>
       
       <StatsGrid>
@@ -408,13 +298,9 @@ export default function Portfolio() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
         >
-          <h3><DollarSign size={20} /> Your Balance</h3>
-          <div className="value">
-            ${userAssetValue.toFixed(2)}
-          </div>
-          <div className="subtext">
-            {userShares ? formatUnits(userShares, 18) : '0'} ymUSDC
-          </div>
+          <h3><DollarSign size={16} /> Your Balance</h3>
+          <div className="value">${userBalance.toFixed(2)}</div>
+          <div className="subtext">{ymUSDCBalance} ymUSDC</div>
         </StatCard>
         
         <StatCard
@@ -422,8 +308,8 @@ export default function Portfolio() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
         >
-          <h3><TrendingUp size={20} /> Current APY</h3>
-          <div className="value">{currentAPY.toFixed(2)}%</div>
+          <h3><TrendingUp size={16} /> Current APY</h3>
+          <div className="value">{currentAPY}%</div>
           <div className="subtext">Auto-compounding</div>
         </StatCard>
         
@@ -432,7 +318,7 @@ export default function Portfolio() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
         >
-          <h3><Activity size={20} /> Active Protocol</h3>
+          <h3><Activity size={16} /> Active Protocol</h3>
           <div className="value">{currentProtocol}</div>
           <div className="subtext">Optimized hourly</div>
         </StatCard>
@@ -442,15 +328,13 @@ export default function Portfolio() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
         >
-          <h3><Shield size={20} /> Risk Score</h3>
+          <h3><Shield size={16} /> Risk Score</h3>
           <div className="value">{riskScore}/100</div>
-          <div className="subtext">
-            {riskScore <= 30 ? 'Low Risk' : riskScore <= 60 ? 'Medium Risk' : 'High Risk'}
-          </div>
+          <div className="subtext">Low Risk</div>
         </StatCard>
       </StatsGrid>
       
-      <ActionSection>
+      <ActionCard>
         <TabContainer>
           <Tab $active={activeTab === 'deposit'} onClick={() => setActiveTab('deposit')}>
             Deposit
@@ -460,72 +344,51 @@ export default function Portfolio() {
           </Tab>
         </TabContainer>
         
-        {activeTab === 'deposit' ? (
-          <div>
-            <InputGroup>
-              <label>Amount to Deposit</label>
-              <div className="input-wrapper">
-                <input
-                  type="number"
-                  placeholder="0.00"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                />
-                <button
-                  onClick={handleDirectDeposit}
-                  disabled={!amount}
-                >
-                  Deposit USDC
-                </button>
-              </div>
-              <div style={{ marginTop: '0.5rem', color: '#64748b', fontSize: '0.875rem' }}>
-                Available: {userBalance ? formatUnits(userBalance, 6) : '0'} USDC
-              </div>
-            </InputGroup>
-          </div>
-        ) : (
-          <div>
-            <InputGroup>
-              <label>Amount to Withdraw</label>
-              <div className="input-wrapper">
-                <input
-                  type="number"
-                  placeholder="0.00"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                />
-                <button
-                  onClick={handleWithdraw}
-                  disabled={isLoading || isWithdrawing || !amount}
-                >
-                  {isWithdrawing ? 'Withdrawing...' : 'Withdraw USDC'}
-                </button>
-              </div>
-              <div style={{ marginTop: '0.5rem', color: '#64748b', fontSize: '0.875rem' }}>
-                Available: ${userAssetValue.toFixed(2)}
-              </div>
-            </InputGroup>
-          </div>
-        )}
-      </ActionSection>
-      
-      <ProtocolInfo>
-        <h3>Protocol Information</h3>
-        <div className="protocol-stats">
-          <div className="stat">
-            <h4>Total Value Locked</h4>
-            <p>${totalAssets ? formatUnits(totalAssets, 6) : '0'}</p>
-          </div>
-          <div className="stat">
-            <h4>Strategy Confidence</h4>
-            <p>{strategyData ? Number(strategyData[4]) : 0}%</p>
-          </div>
-          <div className="stat">
-            <h4>Last Update</h4>
-            <p>{strategyData ? new Date(Number(strategyData[5]) * 1000).toLocaleString() : 'N/A'}</p>
-          </div>
+        <div>
+          <InputGroup>
+            <label className="label">
+              Amount ({activeTab === 'deposit' ? 'USDC' : 'ymUSDC'})
+            </label>
+            <div className="input-container">
+              <input
+                type="number"
+                placeholder="0.00"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                disabled={isLoading}
+              />
+              <span className="currency">
+                {activeTab === 'deposit' ? 'USDC' : 'ymUSDC'}
+              </span>
+            </div>
+          </InputGroup>
+          
+          <BalanceInfo>
+            <span className="label">Available Balance</span>
+            <div>
+              <span className="balance">
+                {activeTab === 'deposit' 
+                  ? `${userBalance} USDC` 
+                  : `${ymUSDCBalance} ymUSDC`
+                }
+              </span>
+              <span className="max-button" onClick={handleMaxClick}>
+                {' '}• MAX
+              </span>
+            </div>
+          </BalanceInfo>
+          
+          <ActionButton 
+            onClick={handleAction}
+            disabled={!amount || parseFloat(amount) <= 0 || isLoading}
+          >
+            {isLoading 
+              ? 'Processing...' 
+              : activeTab === 'deposit' ? 'Deposit' : 'Withdraw'
+            }
+          </ActionButton>
         </div>
-      </ProtocolInfo>
+      </ActionCard>
     </Container>
   );
 }

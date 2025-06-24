@@ -1,88 +1,91 @@
 import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
-import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount } from 'wagmi';
 import styled from 'styled-components';
+import Layout from '../components/common/Layout';
 
 // Dynamic imports to avoid SSR issues
 const Portfolio = dynamic(() => import('../components/Portfolio/Portfolio'), {
   ssr: false,
+  loading: () => <LoadingSpinner>Loading Portfolio...</LoadingSpinner>
 });
 
-const AIOptimization = dynamic(() => import('../components/AIOptimization/AIOptimization'), {
+const AutomationDashboard = dynamic(() => import('../components/Automation/AutomationDashboard'), {
   ssr: false,
+  loading: () => <LoadingSpinner>Loading Automation...</LoadingSpinner>
 });
 
-// Use the new Bridge component instead of CrossChainDashboard
-const Bridge = dynamic(() => import('../components/Bridge/Bridge'), {
-  ssr: false,
-});
-
-const AppContainer = styled.div`
-  min-height: 100vh;
-  background: #0f172a;
-  color: white;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+const LoadingSpinner = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 400px;
+  color: #64748b;
 `;
 
-const Header = styled.header`
+const TabContainer = styled.div`
+  margin-bottom: 2rem;
+`;
+
+const TabList = styled.div`
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1.5rem 2rem;
+  gap: 0.5rem;
   border-bottom: 1px solid #1e293b;
-  background: rgba(15, 23, 42, 0.8);
-  backdrop-filter: blur(12px);
-  position: sticky;
-  top: 0;
-  z-index: 50;
+  margin-bottom: 2rem;
 `;
 
-const Logo = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 1.5rem;
-  font-weight: bold;
-  cursor: pointer;
-  text-decoration: none;
-  color: inherit;
-  
-  span {
-    background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-  }
-`;
-
-const NavTabs = styled.nav`
-  display: flex;
-  gap: 0.5rem;
-`;
-
+// Use transient props to avoid DOM warnings
 const TabButton = styled.button<{ $active?: boolean }>`
-  padding: 0.5rem 1rem;
-  background: ${({ $active }) => $active 
-    ? 'rgba(59, 130, 246, 0.2)' 
-    : 'transparent'
-  };
-  border: 1px solid ${({ $active }) => $active 
-    ? 'rgba(59, 130, 246, 0.5)' 
-    : 'transparent'
-  };
-  border-radius: 0.5rem;
-  color: ${({ $active }) => $active ? '#60a5fa' : '#94a3b8'};
+  padding: 0.75rem 1.5rem;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid ${({ $active }) => $active ? '#3b82f6' : 'transparent'};
+  color: ${({ $active }) => $active ? '#3b82f6' : '#64748b'};
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
   
   &:hover {
-    background: rgba(59, 130, 246, 0.1);
-    color: #60a5fa;
+    color: #3b82f6;
   }
 `;
 
-type TabType = 'portfolio' | 'ai' | 'bridge';
+const Content = styled.div`
+  animation: fadeIn 0.3s ease-in-out;
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+`;
+
+const WelcomeSection = styled.div`
+  text-align: center;
+  padding: 4rem 2rem;
+  
+  h1 {
+    font-size: 3rem;
+    font-weight: bold;
+    margin-bottom: 1rem;
+    background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  
+  p {
+    font-size: 1.25rem;
+    color: #94a3b8;
+    margin-bottom: 2rem;
+  }
+`;
+
+type TabType = 'portfolio' | 'automation';
 
 export default function Home() {
   const { address } = useAccount();
@@ -96,56 +99,41 @@ export default function Home() {
   if (!mounted) {
     return null;
   }
-  
-  const renderContent = () => {
-    switch (activeTab) {
-      case 'portfolio':
-        return <Portfolio />;
-      case 'ai':
-        return <AIOptimization account={address} />;
-      case 'bridge':
-        return <Bridge />; // Use the new Bridge component
-      default:
-        return <Portfolio />;
-    }
-  };
-  
+
+  if (!address) {
+    return (
+      <Layout>
+        <WelcomeSection>
+          <h1>Welcome to YieldMax</h1>
+          <p>Connect your wallet to start optimizing your DeFi yields</p>
+        </WelcomeSection>
+      </Layout>
+    );
+  }
+
   return (
-    <AppContainer>
-      <Header>
-        <Logo>
-          ⚡ <span>YieldMax</span>
-        </Logo>
-        
-        <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
-          <NavTabs>
-            <TabButton 
-              $active={activeTab === 'portfolio'} 
-              onClick={() => setActiveTab('portfolio')}
-            >
-              📊 Portfolio
-            </TabButton>
-            <TabButton 
-              $active={activeTab === 'ai'} 
-              onClick={() => setActiveTab('ai')}
-            >
-              🧠 AI Optimization
-            </TabButton>
-            <TabButton 
-              $active={activeTab === 'bridge'} 
-              onClick={() => setActiveTab('bridge')}
-            >
-              🌉 Bridge
-            </TabButton>
-          </NavTabs>
-          
-          <ConnectButton />
-        </div>
-      </Header>
-      
-      <main>
-        {renderContent()}
-      </main>
-    </AppContainer>
+    <Layout>
+      <TabContainer>
+        <TabList>
+          <TabButton 
+            $active={activeTab === 'portfolio'} 
+            onClick={() => setActiveTab('portfolio')}
+          >
+            Portfolio
+          </TabButton>
+          <TabButton 
+            $active={activeTab === 'automation'} 
+            onClick={() => setActiveTab('automation')}
+          >
+            Automation
+          </TabButton>
+        </TabList>
+      </TabContainer>
+
+      <Content>
+        {activeTab === 'portfolio' && <Portfolio />}
+        {activeTab === 'automation' && <AutomationDashboard account={address} />}
+      </Content>
+    </Layout>
   );
 }

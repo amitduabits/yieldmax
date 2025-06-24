@@ -1,4 +1,3 @@
-// pages/bridge.tsx
 import React from 'react';
 import Bridge from '../components/Bridge/Bridge';
 

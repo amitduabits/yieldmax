@@ -17,15 +17,10 @@ const HeaderContainer = styled.header`
   z-index: 50;
 `;
 
-const Logo = styled.a`
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+const LogoContainer = styled.div`
   font-size: 1.5rem;
   font-weight: bold;
   cursor: pointer;
-  text-decoration: none;
-  color: inherit;
   
   span {
     background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
@@ -44,8 +39,9 @@ const Nav = styled.nav`
   }
 `;
 
-const NavLink = styled.a<{ active?: boolean }>`
-  color: ${({ active }) => active ? '#3b82f6' : '#94a3b8'};
+// Use transient props ($active) to avoid DOM warnings
+const NavLinkStyled = styled.span<{ $active?: boolean }>`
+  color: ${({ $active }) => $active ? '#3b82f6' : '#94a3b8'};
   text-decoration: none;
   font-weight: 500;
   transition: color 0.2s;
@@ -77,20 +73,20 @@ export default function Header() {
   return (
     <HeaderContainer>
       <Link href="/" passHref>
-        <Logo>
+        <LogoContainer>
           ⚡ <span>YieldMax</span>
-        </Logo>
+        </LogoContainer>
       </Link>
       
       <Nav>
         <Link href="/" passHref>
-          <NavLink active={isActive('/')}>Portfolio</NavLink>
+          <NavLinkStyled $active={isActive('/')}>Portfolio</NavLinkStyled>
         </Link>
         <Link href="/strategies" passHref>
-          <NavLink active={isActive('/strategies')}>Strategies</NavLink>
+          <NavLinkStyled $active={isActive('/strategies')}>Strategies</NavLinkStyled>
         </Link>
         <Link href="/bridge" passHref>
-          <NavLink active={isActive('/bridge')}>Bridge</NavLink>
+          <NavLinkStyled $active={isActive('/bridge')}>Bridge</NavLinkStyled>
         </Link>
       </Nav>
       

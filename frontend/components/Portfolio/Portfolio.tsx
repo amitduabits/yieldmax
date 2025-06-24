@@ -6,37 +6,17 @@ import styled from 'styled-components';
 import { motion } from 'framer-motion';
 import { TrendingUp, DollarSign, Activity, Shield, RefreshCw } from 'lucide-react';
 
-// Contract configuration
+// Contract configuration - UPDATED WITH YOUR DEPLOYED ADDRESSES
 const CONTRACTS = {
   sepolia: {
-    vault: '0xECbA31cf51F88BA5193186abf35225ECE097df44',
-    strategyEngine: '0x467B0446a4628F83DEA0fd82cB83f8ef8140fC30',
-    usdc: '0x5289F073c6ff1A4175ac7FBb1f9908e1354b910d'
+    vault: '0x8B388c1E9f6b3Ef66f5D3E81d90CD1e5d65AC0BC',
+    strategyEngine: '0xE113312320A6Fb5cf78ac7e0C8B72E9bc788aC4f',
+    usdc: '0x99f8B38514d22c54982b4be93495735bfcCE23b9'
   }
 };
 
-const VAULT_ABI = [
-  'function deposit(uint256 assets, address receiver) returns (uint256 shares)',
-  'function withdraw(uint256 assets, address receiver, address owner) returns (uint256 shares)',
-  'function totalAssets() view returns (uint256)',
-  'function totalSupply() view returns (uint256)',
-  'function balanceOf(address account) view returns (uint256)',
-  'function convertToAssets(uint256 shares) view returns (uint256)',
-  'function maxWithdraw(address owner) view returns (uint256)',
-  'function previewDeposit(uint256 assets) view returns (uint256)',
-  'function previewWithdraw(uint256 assets) view returns (uint256)'
-];
-
-const ERC20_ABI = [
-  'function balanceOf(address account) view returns (uint256)',
-  'function approve(address spender, uint256 amount) returns (bool)',
-  'function allowance(address owner, address spender) view returns (uint256)'
-];
-
-const STRATEGY_ABI = [
-  'function getCurrentStrategy() view returns (string memory, uint256, uint256, uint256, uint256, uint256)',
-  'function shouldRebalance() view returns (bool, string memory)'
-];
+// Import ABIs from the addresses file instead of defining them here
+import { VAULT_ABI, ERC20_ABI, STRATEGY_ABI } from '../../lib/contracts/addresses';
 
 // Styled Components
 const Container = styled.div`
@@ -108,18 +88,18 @@ const TabContainer = styled.div`
   margin-bottom: 2rem;
 `;
 
-const Tab = styled.button<{ active: boolean }>`
+const Tab = styled.button<{ $active: boolean }>`
   padding: 0.75rem 1.5rem;
   border-radius: 8px;
   border: none;
-  background: ${props => props.active ? 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)' : 'rgba(255, 255, 255, 0.1)'};
+  background: ${props => props.$active ? 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)' : 'rgba(255, 255, 255, 0.1)'};
   color: white;
   cursor: pointer;
   font-weight: 500;
   transition: all 0.3s ease;
   
   &:hover {
-    background: ${props => props.active ? 
+    background: ${props => props.$active ? 
       'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)' : 
       'rgba(255, 255, 255, 0.15)'
     };
@@ -288,32 +268,81 @@ export default function Portfolio() {
   const currentProtocol = strategyData ? strategyData[0] : 'Loading...';
   const riskScore = strategyData ? Number(strategyData[3]) : 0;
   
-  const handleDeposit = async () => {
-    if (!amount || !address) return;
+  const handleDirectDeposit = async () => {
+    if (!window.ethereum || !amount) return;
     
     try {
-      setIsLoading(true);
-      const parsedAmount = parseUnits(amount, 6); // USDC has 6 decimals
+      // Get the provider and signer from MetaMask directly
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      const signer = provider.getSigner();
+      const userAddress = await signer.getAddress();
       
-      // First approve
-      await approve({
-        args: [CONTRACTS.sepolia.vault, parsedAmount],
-      });
+      // Contract addresses
+      const vaultAddress = CONTRACTS.sepolia.vault;
+      const usdcAddress = CONTRACTS.sepolia.usdc;
       
-      // Wait for approval
-      setTimeout(async () => {
-        // Then deposit
-        await deposit({
-          args: [parsedAmount, address],
-        });
-      }, 5000);
+      // Create contract instances
+      const vaultContract = new ethers.Contract(
+        vaultAddress,
+        ['function deposit(uint256 assets, address receiver) returns (uint256)'],
+        signer
+      );
+      
+      const usdcContract = new ethers.Contract(
+        usdcAddress,
+        [
+          'function approve(address spender, uint256 amount) returns (bool)',
+          'function allowance(address owner, address spender) view returns (uint256)'
+        ],
+        signer
+      );
+      
+      // Parse amount (USDC has 6 decimals)
+      const amountWei = ethers.utils.parseUnits(amount, 6);
+      
+      // Check current allowance
+      const currentAllowance = await usdcContract.allowance(userAddress, vaultAddress);
+      console.log('Current allowance:', ethers.utils.formatUnits(currentAllowance, 6));
+      
+      // If allowance is insufficient, approve first
+      if (currentAllowance.lt(amountWei)) {
+        console.log('Approving USDC...');
+        const approveTx = await usdcContract.approve(vaultAddress, amountWei);
+        console.log('Approval tx:', approveTx.hash);
+        await approveTx.wait();
+        console.log('Approval confirmed!');
+      }
+      
+      // Now deposit
+      console.log('Depositing', amount, 'USDC...');
+      const depositTx = await vaultContract.deposit(amountWei, userAddress);
+      console.log('Deposit tx:', depositTx.hash);
+      
+      // Wait for confirmation
+      const receipt = await depositTx.wait();
+      console.log('Deposit confirmed!', receipt);
+      
+      // Clear the form and refresh
+      setAmount('');
+      alert('Deposit successful! Refreshing page...');
+      setTimeout(() => window.location.reload(), 2000);
       
     } catch (error) {
-      console.error('Deposit failed:', error);
-    } finally {
-      setIsLoading(false);
+      console.error('Deposit error:', error);
+      alert('Deposit failed: ' + (error as any).message);
     }
   };
+  
+  // Watch for deposit completion
+  useEffect(() => {
+    if (depositData?.hash && isDepositing === false) {
+      // Deposit completed, clear form and refresh
+      setAmount('');
+      setIsLoading(false);
+      // Force a refresh of all data
+      window.location.reload();
+    }
+  }, [depositData, isDepositing]);
   
   const handleWithdraw = async () => {
     if (!amount || !address) return;
@@ -401,10 +430,10 @@ export default function Portfolio() {
       
       <ActionSection>
         <TabContainer>
-          <Tab active={activeTab === 'deposit'} onClick={() => setActiveTab('deposit')}>
+          <Tab $active={activeTab === 'deposit'} onClick={() => setActiveTab('deposit')}>
             Deposit
           </Tab>
-          <Tab active={activeTab === 'withdraw'} onClick={() => setActiveTab('withdraw')}>
+          <Tab $active={activeTab === 'withdraw'} onClick={() => setActiveTab('withdraw')}>
             Withdraw
           </Tab>
         </TabContainer>
@@ -421,10 +450,10 @@ export default function Portfolio() {
                   onChange={(e) => setAmount(e.target.value)}
                 />
                 <button
-                  onClick={handleDeposit}
-                  disabled={isLoading || isApproving || isDepositing || !amount}
+                  onClick={handleDirectDeposit}
+                  disabled={!amount}
                 >
-                  {isApproving ? 'Approving...' : isDepositing ? 'Depositing...' : 'Deposit USDC'}
+                  Deposit USDC
                 </button>
               </div>
               <div style={{ marginTop: '0.5rem', color: '#64748b', fontSize: '0.875rem' }}>

@@ -1,13 +1,14 @@
 // hooks/useYieldMax.ts
 import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
-import { useAccount, useProvider, useSigner } from 'wagmi';
+import { useAccount, useNetwork, usePublicClient, useWalletClient } from 'wagmi';
 import { CONTRACTS, VAULT_ABI, ERC20_ABI } from '../lib/contracts/addresses';
 
 export function useYieldMax() {
   const { address, isConnected } = useAccount();
-  const provider = useProvider();
-  const { data: signer } = useSigner();
+  const { chain } = useNetwork();
+  const publicClient = usePublicClient();
+  const { data: walletClient } = useWalletClient();
   
   const [vaultData, setVaultData] = useState({
     totalAssets: '0',
@@ -25,14 +26,46 @@ export function useYieldMax() {
     success: false,
   });
 
-  // Get contract instances
+  // Convert viem public client to ethers provider
+  const getEthersProvider = () => {
+    if (!publicClient) return null;
+    
+    // Use the Alchemy RPC URL with a working API key
+    const rpcUrl = process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL || 
+      'https://eth-sepolia.g.alchemy.com/v2/_gg7wSSi0KMBsdKnGVfHDueq6xMB9EkC';
+    
+    const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+    
+    return provider;
+  };
+
+  // Get ethers signer from wallet client
+  const getEthersSigner = () => {
+    if (!walletClient || !address) return null;
+    
+    const provider = getEthersProvider();
+    if (!provider) return null;
+    
+    // For wagmi v1, we need to create an ethers signer differently
+    const signer = provider.getSigner(address);
+    return signer;
+  };
+
+  // Get contract instances with debugging
   const getContracts = () => {
-    // Fix: Use consistent naming
-    const vaultAddress = CONTRACTS.sepolia.vault; // Changed from YieldMaxVault
+    const vaultAddress = CONTRACTS.sepolia.vault;
     const usdcAddress = CONTRACTS.sepolia.usdc;
     
+    console.log('Contract addresses:', {
+      vaultAddress,
+      usdcAddress,
+      hasPublicClient: !!publicClient,
+      chainId: chain?.id,
+    });
+    
+    const provider = getEthersProvider();
     if (!provider) {
-      console.error('Provider not available');
+      console.error('No provider available');
       return null;
     }
 
@@ -47,62 +80,113 @@ export function useYieldMax() {
     }
   };
 
-  // Fetch vault data
+  // Fetch vault data with detailed error handling
   const fetchVaultData = async () => {
+    console.log('fetchVaultData called', { isConnected, address, chainId: chain?.id });
+    
     if (!isConnected || !address) {
-      console.log('Wallet not connected');
+      console.log('Not connected or no address');
+      setVaultData(prev => ({ ...prev, isLoading: false }));
+      return;
+    }
+
+    // Check if we're on the right network
+    if (chain?.id !== 11155111) { // Sepolia chain ID
+      console.error('Wrong network. Please switch to Sepolia');
       setVaultData(prev => ({ ...prev, isLoading: false }));
       return;
     }
 
     const contracts = getContracts();
     if (!contracts) {
-      console.error('Contracts not initialized');
+      console.error('Could not get contracts');
       setVaultData(prev => ({ ...prev, isLoading: false }));
       return;
     }
 
     try {
       const { vaultContract, usdcContract, vaultAddress } = contracts;
+      
+      console.log('Fetching vault data...');
 
-      // Add error handling for each contract call
-      const [
-        totalAssets,
-        totalShares,
-        userShares,
-        userBalance,
-        allowance,
-        lastRebalance,
-      ] = await Promise.all([
-        vaultContract.totalAssets().catch(() => ethers.BigNumber.from(0)),
-        vaultContract.totalSupply().catch(() => ethers.BigNumber.from(0)), // Changed from totalShares
-        vaultContract.balanceOf(address).catch(() => ethers.BigNumber.from(0)), // Changed from getUserShares
-        usdcContract.balanceOf(address).catch(() => ethers.BigNumber.from(0)),
-        usdcContract.allowance(address, vaultAddress).catch(() => ethers.BigNumber.from(0)),
-        vaultContract.lastRebalance().catch(() => ethers.BigNumber.from(0)),
-      ]);
+      // Try to fetch each value individually to identify which one fails
+      let totalAssets = ethers.BigNumber.from(0);
+      let totalShares = ethers.BigNumber.from(0);
+      let userShares = ethers.BigNumber.from(0);
+      let userBalance = ethers.BigNumber.from(0);
+      let allowance = ethers.BigNumber.from(0);
+      let lastRebalance = ethers.BigNumber.from(0);
+
+      try {
+        totalAssets = await vaultContract.totalAssets();
+        console.log('totalAssets:', totalAssets.toString());
+      } catch (e) {
+        console.error('Error fetching totalAssets:', e);
+      }
+
+      try {
+        // Try totalSupply if totalShares doesn't exist
+        totalShares = await vaultContract.totalSupply();
+        console.log('totalSupply:', totalShares.toString());
+      } catch (e) {
+        console.error('Error fetching totalSupply:', e);
+      }
+
+      try {
+        // Try balanceOf instead of getUserShares
+        userShares = await vaultContract.balanceOf(address);
+        console.log('userShares (balanceOf):', userShares.toString());
+      } catch (e) {
+        console.error('Error fetching userShares:', e);
+      }
+
+      try {
+        userBalance = await usdcContract.balanceOf(address);
+        console.log('USDC balance:', userBalance.toString());
+      } catch (e) {
+        console.error('Error fetching USDC balance:', e);
+      }
+
+      try {
+        allowance = await usdcContract.allowance(address, vaultAddress);
+        console.log('allowance:', allowance.toString());
+      } catch (e) {
+        console.error('Error fetching allowance:', e);
+      }
+
+      try {
+        lastRebalance = await vaultContract.lastRebalance();
+        console.log('lastRebalance:', lastRebalance.toString());
+      } catch (e) {
+        console.error('Error fetching lastRebalance:', e);
+      }
 
       setVaultData({
         totalAssets: ethers.utils.formatUnits(totalAssets, 6),
-        totalShares: ethers.utils.formatUnits(totalShares, 6),
-        userShares: ethers.utils.formatUnits(userShares, 6),
+        totalShares: ethers.utils.formatUnits(totalShares, 18), // ymUSDC likely has 18 decimals
+        userShares: ethers.utils.formatUnits(userShares, 18),
         userBalance: ethers.utils.formatUnits(userBalance, 6),
         allowance: ethers.utils.formatUnits(allowance, 6),
         lastRebalance: lastRebalance.toNumber(),
         isLoading: false,
       });
+
+      console.log('Vault data updated successfully');
     } catch (error) {
-      console.error('Error fetching vault data:', error);
+      console.error('Error in fetchVaultData:', error);
       setVaultData(prev => ({ ...prev, isLoading: false }));
     }
   };
 
   // Deposit function
   const deposit = async (amount: string) => {
-    if (!signer || !address) throw new Error('Wallet not connected');
+    if (!walletClient || !address) throw new Error('Wallet not connected');
 
     const contracts = getContracts();
     if (!contracts) throw new Error('Contracts not available');
+
+    const signer = getEthersSigner();
+    if (!signer) throw new Error('Could not get signer');
 
     setTxStatus({ isLoading: true, error: null, success: false });
 
@@ -121,12 +205,14 @@ export function useYieldMax() {
         console.log('Approving USDC...');
         const approveTx = await usdcWithSigner.approve(vaultAddress, amountWei);
         await approveTx.wait();
+        console.log('Approval successful');
       }
 
       // Deposit
       console.log('Depositing...');
       const depositTx = await vaultWithSigner.deposit(amountWei, address);
       await depositTx.wait();
+      console.log('Deposit successful');
 
       setTxStatus({ isLoading: false, error: null, success: true });
       await fetchVaultData();
@@ -135,7 +221,7 @@ export function useYieldMax() {
       console.error('Deposit error:', error);
       setTxStatus({ 
         isLoading: false, 
-        error: error.reason || error.message || 'Deposit failed', 
+        error: error.message || 'Deposit failed', 
         success: false 
       });
       throw error;
@@ -143,11 +229,14 @@ export function useYieldMax() {
   };
 
   // Withdraw function
-  const withdraw = async (shares: string) => {
-    if (!signer || !address) throw new Error('Wallet not connected');
+  const withdraw = async (amount: string) => {
+    if (!walletClient || !address) throw new Error('Wallet not connected');
 
     const contracts = getContracts();
     if (!contracts) throw new Error('Contracts not available');
+
+    const signer = getEthersSigner();
+    if (!signer) throw new Error('Could not get signer');
 
     setTxStatus({ isLoading: true, error: null, success: false });
 
@@ -155,11 +244,12 @@ export function useYieldMax() {
       const { vaultContract } = contracts;
       const vaultWithSigner = vaultContract.connect(signer);
 
-      const sharesWei = ethers.utils.parseUnits(shares, 6);
+      const amountWei = ethers.utils.parseUnits(amount, 6);
 
-      // Use redeem instead of withdraw for ERC-4626
-      const withdrawTx = await vaultWithSigner.redeem(sharesWei, address, address);
+      console.log('Withdrawing...');
+      const withdrawTx = await vaultWithSigner.withdraw(amountWei, address, address);
       await withdrawTx.wait();
+      console.log('Withdrawal successful');
 
       setTxStatus({ isLoading: false, error: null, success: true });
       await fetchVaultData();
@@ -168,7 +258,7 @@ export function useYieldMax() {
       console.error('Withdraw error:', error);
       setTxStatus({ 
         isLoading: false, 
-        error: error.reason || error.message || 'Withdrawal failed', 
+        error: error.message || 'Withdrawal failed', 
         success: false 
       });
       throw error;
@@ -176,10 +266,13 @@ export function useYieldMax() {
   };
 
   useEffect(() => {
-    if (isConnected && provider) {
+    if (isConnected && address && chain?.id === 11155111) {
       fetchVaultData();
+      // Refresh data every 30 seconds
+      const interval = setInterval(fetchVaultData, 30000);
+      return () => clearInterval(interval);
     }
-  }, [isConnected, address, provider]);
+  }, [isConnected, address, chain?.id]);
 
   return {
     vaultData,

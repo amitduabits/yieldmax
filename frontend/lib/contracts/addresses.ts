@@ -1,9 +1,12 @@
+// lib/contracts/addresses.ts
+
 export const CONTRACTS = {
   sepolia: {
-    vault: '0xc2A4d1a2F1200680F1024d7310e3e84DeE3E5777',
-    strategyEngine: '0xcA5F43F98d41249CAd9d953f6f6967C582bAf78B',
-    crossChainManager: '0xC033b4Eea791ba83C0FcDAC8cD67c563B5b98eC3',
-    usdc: '0xe5f46A2dD1fCDdCDb86b3D9C1D23065B1572F818',
+    vault: '0x8B388c1E9f6b3Ef66f5D3E81d90CD1e5d65AC0BC',
+    strategyEngine: '0xE113312320A6Fb5cf78ac7e0C8B72E9bc788aC4f',
+    crossChainManager: '0x3E7Fe8Bd93cC2862A4642ACf493a9fCE4F975589',
+    automationConnector: '0x...',
+    usdc: '0x99f8B38514d22c54982b4be93495735bfcCE23b9',
     chainlinkRouter: '0x0BF3dE8c5D3e8A2B34D2BEeB17ABfCeBaf363A59',
     linkToken: '0x779877A7B0D9E8603169DdbD7836e478b4624789',
   },
@@ -16,47 +19,133 @@ export const CONTRACTS = {
     linkToken: '0xb1D4538B4571d411F07960EF2838Ce337FE1E80E',
   },
 };
+
 export const CHAIN_SELECTORS = {
   sepolia: '16015286601757825753',
   arbitrumSepolia: '3478487238524512106',
   polygon: '12532609583862916517',
   optimism: '2664363617261496610',
 };
-// Basic ERC20 ABI for USDC interactions
-export const ERC20_ABI = [
-  "function balanceOf(address owner) view returns (uint256)",
-  "function decimals() view returns (uint8)",
-  "function symbol() view returns (string)",
-  "function transfer(address to, uint256 amount) returns (bool)",
-  "function allowance(address owner, address spender) view returns (uint256)",
-  "function approve(address spender, uint256 amount) returns (bool)"
-];
-// YieldMaxVault ABI - essential functions
+
+// YieldMax Vault ABI
 export const VAULT_ABI = [
-  "function deposit(uint256 assets, address receiver) returns (uint256 shares)",
-  "function withdraw(uint256 assets, address receiver, address owner) returns (uint256 shares)",
-  "function redeem(uint256 shares, address receiver, address owner) returns (uint256 assets)",
-  "function totalAssets() view returns (uint256)",
-  "function totalSupply() view returns (uint256)",
-  "function balanceOf(address account) view returns (uint256)",
-  "function convertToShares(uint256 assets) view returns (uint256)",
-  "function convertToAssets(uint256 shares) view returns (uint256)",
-  "function maxDeposit(address) view returns (uint256)",
-  "function maxWithdraw(address owner) view returns (uint256)",
-  "function previewDeposit(uint256 assets) view returns (uint256)",
-  "function previewWithdraw(uint256 assets) view returns (uint256)",
-  "function asset() view returns (address)",
-  "function rebalance() external",
-  "function lastRebalance() view returns (uint256)",
-  "event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares)",
-  "event Withdraw(address indexed sender, address indexed receiver, address indexed owner, uint256 assets, uint256 shares)"
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "assets", "type": "uint256" },
+      { "internalType": "address", "name": "receiver", "type": "address" }
+    ],
+    "name": "deposit",
+    "outputs": [{ "internalType": "uint256", "name": "shares", "type": "uint256" }],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "assets", "type": "uint256" },
+      { "internalType": "address", "name": "receiver", "type": "address" },
+      { "internalType": "address", "name": "owner", "type": "address" }
+    ],
+    "name": "withdraw",
+    "outputs": [{ "internalType": "uint256", "name": "shares", "type": "uint256" }],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "totalAssets",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "totalShares",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "totalSupply",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "internalType": "address", "name": "user", "type": "address" }],
+    "name": "getUserShares",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "internalType": "address", "name": "account", "type": "address" }],
+    "name": "balanceOf",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "lastRebalance",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  }
 ];
-// StrategyEngine ABI
+
+// ERC20 ABI (for USDC)
+export const ERC20_ABI = [
+  {
+    "inputs": [{ "internalType": "address", "name": "account", "type": "address" }],
+    "name": "balanceOf",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "address", "name": "spender", "type": "address" },
+      { "internalType": "uint256", "name": "amount", "type": "uint256" }
+    ],
+    "name": "approve",
+    "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "address", "name": "owner", "type": "address" },
+      { "internalType": "address", "name": "spender", "type": "address" }
+    ],
+    "name": "allowance",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "decimals",
+    "outputs": [{ "internalType": "uint8", "name": "", "type": "uint8" }],
+    "stateMutability": "view",
+    "type": "function"
+  }
+];
+
+// Strategy Engine ABI
 export const STRATEGY_ABI = [
-  "function getCurrentStrategy() view returns (string memory protocolName, uint256 allocation, uint256 expectedAPY, uint256 riskScore, uint256 confidence, uint256 timestamp)",
-  "function shouldRebalance() view returns (bool, string memory)",
-  "function executeRebalance() returns (bool)",
-  "function protocolData(uint8) view returns (uint256 apy, uint256 tvl, uint256 utilization, uint256 lastUpdate, bool active)",
-  "function lastRebalance() view returns (uint256)",
-  "function totalRebalances() view returns (uint256)"
+  {
+    "inputs": [],
+    "name": "getCurrentStrategy",
+    "outputs": [
+      { "internalType": "string", "name": "protocolName", "type": "string" },
+      { "internalType": "uint256", "name": "allocation", "type": "uint256" },
+      { "internalType": "uint256", "name": "expectedAPY", "type": "uint256" },
+      { "internalType": "uint256", "name": "riskScore", "type": "uint256" },
+      { "internalType": "uint256", "name": "confidence", "type": "uint256" },
+      { "internalType": "uint256", "name": "timestamp", "type": "uint256" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
 ];

@@ -59,18 +59,18 @@ const NavTabs = styled.nav`
   gap: 0.5rem;
 `;
 
-const TabButton = styled.button<{ active?: boolean }>`
+const TabButton = styled.button<{ $active?: boolean }>`
   padding: 0.5rem 1rem;
-  background: ${({ active }) => active 
+  background: ${({ $active }) => $active 
     ? 'rgba(59, 130, 246, 0.2)' 
     : 'transparent'
   };
-  border: 1px solid ${({ active }) => active 
+  border: 1px solid ${({ $active }) => $active 
     ? 'rgba(59, 130, 246, 0.5)' 
     : 'transparent'
   };
   border-radius: 0.5rem;
-  color: ${({ active }) => active ? '#60a5fa' : '#94a3b8'};
+  color: ${({ $active }) => $active ? '#60a5fa' : '#94a3b8'};
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
@@ -119,19 +119,19 @@ export default function Home() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
           <NavTabs>
             <TabButton 
-              active={activeTab === 'portfolio'} 
+              $active={activeTab === 'portfolio'} 
               onClick={() => setActiveTab('portfolio')}
             >
               📊 Portfolio
             </TabButton>
             <TabButton 
-              active={activeTab === 'ai'} 
+              $active={activeTab === 'ai'} 
               onClick={() => setActiveTab('ai')}
             >
               🧠 AI Optimization
             </TabButton>
             <TabButton 
-              active={activeTab === 'crosschain'} 
+              $active={activeTab === 'crosschain'} 
               onClick={() => setActiveTab('crosschain')}
             >
               🔗 Cross-Chain

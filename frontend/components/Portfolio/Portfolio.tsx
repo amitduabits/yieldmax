@@ -212,13 +212,20 @@ export default function Portfolio() {
     watch: true,
   });
   
-  const { data: userBalance } = useContractRead({
+  // Add refetch functions
+  const { data: userBalance, refetch: refetchBalance } = useContractRead({
     address: CONTRACTS.sepolia.usdc,
     abi: ERC20_ABI,
     functionName: 'balanceOf',
     args: address ? [address] : undefined,
     watch: true,
   });
+  
+  // Add a manual refresh button
+  const refreshData = () => {
+    refetchBalance();
+    window.location.reload(); // Force complete refresh
+  };
   
   const { data: strategyData } = useContractRead({
     address: CONTRACTS.sepolia.strategyEngine,
@@ -378,6 +385,21 @@ export default function Portfolio() {
       <Header>
         <h1>YieldMax Portfolio</h1>
         <p>Automated yield optimization across DeFi protocols</p>
+        <button 
+          onClick={() => window.location.reload()}
+          style={{
+            marginTop: '1rem',
+            padding: '0.5rem 1rem',
+            background: 'rgba(59, 130, 246, 0.2)',
+            border: '1px solid rgba(59, 130, 246, 0.5)',
+            borderRadius: '8px',
+            color: '#60a5fa',
+            cursor: 'pointer',
+            fontSize: '0.875rem'
+          }}
+        >
+          🔄 Refresh Data
+        </button>
       </Header>
       
       <StatsGrid>

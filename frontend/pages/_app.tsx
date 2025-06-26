@@ -1,79 +1,105 @@
-import { useEffect, useState } from 'react';
-import { WagmiConfig, createConfig, configureChains } from 'wagmi';
-import { sepolia, arbitrumSepolia } from 'wagmi/chains';
-import { alchemyProvider } from 'wagmi/providers/alchemy';
-import { publicProvider } from 'wagmi/providers/public';
-import { getDefaultWallets, RainbowKitProvider, darkTheme } from '@rainbow-me/rainbowkit';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { AppProps } from 'next/app';
-import '@rainbow-me/rainbowkit/styles.css';
 import '../styles/globals.css';
+import type { AppProps } from 'next/app';
+import React from 'react';
+import '@rainbow-me/rainbowkit/styles.css';
+import {
+  getDefaultWallets,
+  RainbowKitProvider,
+} from '@rainbow-me/rainbowkit';
+import { configureChains, createConfig, WagmiConfig } from 'wagmi';
+import { sepolia } from 'wagmi/chains';
+import { publicProvider } from 'wagmi/providers/public';
+import { jsonRpcProvider } from 'wagmi/providers/jsonRpc';
+import { alchemyProvider } from 'wagmi/providers/alchemy';
 
-// Get environment variables with fallbacks
-const alchemyKey = process.env.NEXT_PUBLIC_ALCHEMY_KEY || '';
-const walletConnectProjectId = process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID || '';
-
-// Configure chains with providers
+// Configure multiple RPC providers for better reliability
 const { chains, publicClient } = configureChains(
-  [sepolia, arbitrumSepolia],
+  [sepolia],
   [
-    // Only add alchemy provider if we have a key
-    ...(alchemyKey ? [alchemyProvider({ apiKey: alchemyKey })] : []),
-    publicProvider()
-  ]
+    // Try Alchemy first if key is provided
+    ...(process.env.NEXT_PUBLIC_ALCHEMY_KEY 
+      ? [alchemyProvider({ apiKey: process.env.NEXT_PUBLIC_ALCHEMY_KEY })]
+      : []
+    ),
+    
+    // Use Infura as backup
+    jsonRpcProvider({
+      rpc: () => ({
+        http: `https://sepolia.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161`, // Public Infura key
+        webSocket: `wss://sepolia.infura.io/ws/v3/9aa3d95b3bc440fa88ea12eaa4456161`,
+      }),
+      priority: 1,
+    }),
+    
+    // QuickNode public endpoint
+    jsonRpcProvider({
+      rpc: () => ({
+        http: `https://ethereum-sepolia.publicnode.com`,
+      }),
+      priority: 2,
+    }),
+    
+    // Ankr public endpoint
+    jsonRpcProvider({
+      rpc: () => ({
+        http: `https://rpc.ankr.com/eth_sepolia`,
+      }),
+      priority: 3,
+    }),
+    
+    // Public provider as last resort
+    publicProvider({ priority: 999 }),
+  ],
+  {
+    // Reduce batch size to avoid timeouts
+    batch: {
+      multicall: {
+        batchSize: 50,
+        wait: 50,
+      },
+    },
+    // Increase timeout
+    pollingInterval: 12_000,
+  }
 );
 
 const { connectors } = getDefaultWallets({
   appName: 'YieldMax',
-  projectId: walletConnectProjectId,
-  chains,
+  projectId: process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID || 'YOUR_PROJECT_ID',
+  chains
 });
 
 const wagmiConfig = createConfig({
   autoConnect: true,
   connectors,
-  publicClient,
+  publicClient
 });
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      refetchOnWindowFocus: false,
-      retry: 2,
-      staleTime: 30000,
-    },
-  },
-});
-
-function MyApp({ Component, pageProps }: AppProps) {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
+export default function App({ Component, pageProps }: AppProps) {
+  const [mounted, setMounted] = React.useState(false);
+  
+  React.useEffect(() => {
     setMounted(true);
   }, []);
-
-  // Prevent hydration errors by not rendering until mounted
-  if (!mounted) {
-    return null;
-  }
-
+  
   return (
     <WagmiConfig config={wagmiConfig}>
-      <RainbowKitProvider 
-        chains={chains} 
-        theme={darkTheme({
-          accentColor: '#3b82f6',
-          accentColorForeground: 'white',
-          borderRadius: 'medium',
-          fontStack: 'system',
-        })}
-      >
-        <QueryClientProvider client={queryClient}>
+      <RainbowKitProvider chains={chains}>
+        {mounted ? (
           <Component {...pageProps} />
-        </QueryClientProvider>
+        ) : (
+          <div style={{ 
+            minHeight: '100vh', 
+            background: '#0f172a',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#94a3b8'
+          }}>
+            Loading...
+          </div>
+        )}
       </RainbowKitProvider>
     </WagmiConfig>
   );
 }
-
-export default MyApp;

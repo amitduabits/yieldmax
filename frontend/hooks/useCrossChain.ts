@@ -14,6 +14,7 @@ export function useCrossChain() {
     success: false,
     txHash: null as string | null,
   });
+      }
 
   // Get current network contracts
   const getCurrentContracts = () => {
@@ -37,6 +38,7 @@ export function useCrossChain() {
     enabled: !!address && !!currentContracts?.usdc,
     watch: true,
   });
+      }
 
   // Get destination chain selector
   const getDestinationChainSelector = () => {
@@ -55,6 +57,7 @@ export function useCrossChain() {
     receiverAddress?: string
   ) => {
     setBridgeStatus({ isLoading: true, error: null, success: false, txHash: null });
+      }
     
     try {
       if (!window.ethereum || !address) {
@@ -73,6 +76,7 @@ export function useCrossChain() {
         success: true,
         txHash: '0x' + Math.random().toString(16).substring(2, 10) + '...' + Math.random().toString(16).substring(2, 6),
       });
+      }
 
       console.log(`Bridge simulation: ${amount} USDC from ${chain?.name} to ${destinationChain}`);
       
@@ -85,6 +89,7 @@ export function useCrossChain() {
         success: false,
         txHash: null,
       });
+      }
       throw error;
     }
   };
@@ -92,18 +97,22 @@ export function useCrossChain() {
   // Switch network helper
   const switchToNetwork = async (networkId: number) => {
     try {
-      await window.ethereum?.request({
+      if (window.ethereum) {
+        await window.ethereum.request({
         method: 'wallet_switchEthereumChain',
         params: [{ chainId: `0x${networkId.toString(16)}` }],
       });
+      }
     } catch (error: any) {
       if (error.code === 4902) {
         const networkConfig = getNetworkConfig(networkId);
         if (networkConfig) {
-          await window.ethereum?.request({
+          if (window.ethereum) {
+        await window.ethereum.request({
             method: 'wallet_addEthereumChain',
             params: [networkConfig],
           });
+      }
         }
       } else {
         console.error('Failed to switch network:', error);
@@ -148,6 +157,7 @@ export function useCrossChain() {
         selector: CHAIN_SELECTORS.arbitrumSepolia,
         key: 'arbitrumSepolia' as const,
       });
+      }
     } else if (currentChainId === 421614) {
       networks.push({
         name: 'Sepolia',
@@ -155,6 +165,7 @@ export function useCrossChain() {
         selector: CHAIN_SELECTORS.sepolia,
         key: 'sepolia' as const,
       });
+      }
     }
     
     return networks;

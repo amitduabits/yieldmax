@@ -24,31 +24,27 @@ const { chains, publicClient } = configureChains(
     
     // Use Infura as backup
     jsonRpcProvider({
-      rpc: () => ({
-        http: `https://sepolia.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161`, // Public Infura key
-        webSocket: `wss://sepolia.infura.io/ws/v3/9aa3d95b3bc440fa88ea12eaa4456161`,
+      rpc: (chain) => ({
+        http: `https://sepolia.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161`,
       }),
-      priority: 1,
     }),
     
     // QuickNode public endpoint
     jsonRpcProvider({
-      rpc: () => ({
+      rpc: (chain) => ({
         http: `https://ethereum-sepolia.publicnode.com`,
       }),
-      priority: 2,
     }),
     
     // Ankr public endpoint
     jsonRpcProvider({
-      rpc: () => ({
+      rpc: (chain) => ({
         http: `https://rpc.ankr.com/eth_sepolia`,
       }),
-      priority: 3,
     }),
     
     // Public provider as last resort
-    publicProvider({ priority: 999 }),
+    publicProvider(),
   ],
   {
     // Reduce batch size to avoid timeouts

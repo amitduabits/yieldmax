@@ -2,20 +2,20 @@
 
 export const CONTRACTS = {
   sepolia: {
-    vault: '0xc2A4d1a2F1200680F1024d7310e3e84DeE3E5777',
-    strategyEngine: '0xcA5F43F98d41249CAd9d953f6f6967C582bAf78B',
-    crossChainManager: '0xC033b4Eea791ba83C0FcDAC8cD67c563B5b98eC3',
-    usdc: '0xe5f46A2dD1fCDdCDb86b3D9C1D23065B1572F818',
-    chainlinkRouter: '0x0BF3dE8c5D3e8A2B34D2BEeB17ABfCeBaf363A59',
-    linkToken: '0x779877A7B0D9E8603169DdbD7836e478b4624789',
+    vault: '0xc2A4d1a2F1200680F1024d7310e3e84DeE3E5777' as `0x${string}`,
+    strategyEngine: '0xcA5F43F98d41249CAd9d953f6f6967C582bAf78B' as `0x${string}`,
+    crossChainManager: '0xC033b4Eea791ba83C0FcDAC8cD67c563B5b98eC3' as `0x${string}`,
+    usdc: '0xe5f46A2dD1fCDdCDb86b3D9C1D23065B1572F818' as `0x${string}`,
+    chainlinkRouter: '0x0BF3dE8c5D3e8A2B34D2BEeB17ABfCeBaf363A59' as `0x${string}`,
+    linkToken: '0x779877A7B0D9E8603169DdbD7836e478b4624789' as `0x${string}`,
   },
   arbitrumSepolia: {
-    vault: '0xfb1B4c413E9Ccf30BACB4D1670fB1fFd8072dfC6',
-    strategyEngine: '0xECbA31cf51F88BA5193186abf35225ECE097df44',
-    crossChainManager: '0x94e2FB66Df4faF72b421DF3925872adf8C59Af4c',
-    usdc: '0x3340517A0F037F12bA3EC479a4d136C5371ACc1f',
-    chainlinkRouter: '0x2a9C5afB0d0e4BAb2BCdaE109EC4b0c4Be15a165',
-    linkToken: '0xb1D4538B4571d411F07960EF2838Ce337FE1E80E',
+    vault: '0xfb1B4c413E9Ccf30BACB4D1670fB1fFd8072dfC6' as `0x${string}`,
+    strategyEngine: '0xECbA31cf51F88BA5193186abf35225ECE097df44' as `0x${string}`,
+    crossChainManager: '0x94e2FB66Df4faF72b421DF3925872adf8C59Af4c' as `0x${string}`,
+    usdc: '0x3340517A0F037F12bA3EC479a4d136C5371ACc1f' as `0x${string}`,
+    chainlinkRouter: '0x2a9C5afB0d0e4BAb2BCdaE109EC4b0c4Be15a165' as `0x${string}`,
+    linkToken: '0xb1D4538B4571d411F07960EF2838Ce337FE1E80E' as `0x${string}`,
   },
 };
 
@@ -91,7 +91,7 @@ export const VAULT_ABI = [
     "stateMutability": "view",
     "type": "function"
   }
-];
+] as const;
 
 // ERC20 ABI (for USDC)
 export const ERC20_ABI = [
@@ -139,7 +139,7 @@ export const ERC20_ABI = [
     "stateMutability": "nonpayable",
     "type": "function"
   }
-];
+] as const;
 
 // Strategy Engine ABI
 export const STRATEGY_ABI = [
@@ -164,7 +164,7 @@ export const STRATEGY_ABI = [
     "stateMutability": "nonpayable",
     "type": "function"
   }
-];
+] as const;
 
 // CrossChainManager ABI
 export const CROSS_CHAIN_MANAGER_ABI = [
@@ -190,4 +190,4 @@ export const CROSS_CHAIN_MANAGER_ABI = [
     "stateMutability": "nonpayable",
     "type": "function"
   }
-];
+] as const;

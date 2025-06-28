@@ -237,21 +237,21 @@ export default function Portfolio() {
   
   // Vault data reads
   const { data: totalAssets, refetch: refetchAssets } = useContractRead({
-    address: CONTRACTS.vault,
+    address: CONTRACTS.vault as `0x${string}`,
     abi: EXTENDED_VAULT_ABI,
     functionName: 'totalAssets',
     watch: true,
   });
   
   const { data: totalShares, refetch: refetchTotalShares } = useContractRead({
-    address: CONTRACTS.vault,
+    address: CONTRACTS.vault as `0x${string}`,
     abi: EXTENDED_VAULT_ABI,
     functionName: 'totalSupply',
     watch: true,
   });
   
   const { data: userShares, refetch: refetchShares } = useContractRead({
-    address: CONTRACTS.vault,
+    address: CONTRACTS.vault as `0x${string}`,
     abi: EXTENDED_VAULT_ABI,
     functionName: 'balanceOf',
     args: address ? [address] : undefined,
@@ -259,7 +259,7 @@ export default function Portfolio() {
   });
   
   const { data: userBalance, refetch: refetchBalance } = useContractRead({
-    address: CONTRACTS.usdc,
+    address: CONTRACTS.usdc as `0x${string}`,
     abi: ERC20_ABI,
     functionName: 'balanceOf',
     args: address ? [address] : undefined,
@@ -267,7 +267,7 @@ export default function Portfolio() {
   });
   
   const { data: strategyData } = useContractRead({
-    address: CONTRACTS.strategyEngine,
+    address: CONTRACTS.strategyEngine as `0x${string}`,
     abi: STRATEGY_ABI,
     functionName: 'getCurrentStrategy',
     watch: true,
@@ -275,19 +275,19 @@ export default function Portfolio() {
   
   // Contract writes
   const { write: approve } = useContractWrite({
-    address: CONTRACTS.usdc,
+    address: CONTRACTS.usdc as `0x${string}`,
     abi: ERC20_ABI,
     functionName: 'approve',
   });
   
   const { write: deposit } = useContractWrite({
-    address: CONTRACTS.vault,
+    address: CONTRACTS.vault as `0x${string}`,
     abi: EXTENDED_VAULT_ABI,
     functionName: 'deposit',
   });
   
   const { write: withdraw } = useContractWrite({
-    address: CONTRACTS.vault,
+    address: CONTRACTS.vault as `0x${string}`,
     abi: EXTENDED_VAULT_ABI,
     functionName: 'withdraw',
   });

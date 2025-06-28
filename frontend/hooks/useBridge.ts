@@ -16,7 +16,7 @@ export function useBridge() {
     if (!address || !publicClient) return '0';
     
     try {
-      const chainConfig = CONTRACTS[chainName.toLowerCase()];
+      const chainConfig = CONTRACTS[chainName.toLowerCase() as keyof typeof CONTRACTS];
       if (!chainConfig) return '0';
       
       const provider = new ethers.providers.JsonRpcProvider(

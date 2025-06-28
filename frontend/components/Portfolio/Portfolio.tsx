@@ -449,7 +449,7 @@ export default function Portfolio() {
             ${userAssetValue.toFixed(2)}
           </div>
           <div className="subtext">
-            {userShares ? Number(formatUnits(userShares, 18)).toFixed(8) : '0'} ymUSDC
+            {userShares && typeof userShares === "bigint" ? Number(formatUnits(userShares, 18)).toFixed(8) : "0"} ymUSDC
           </div>
         </StatCard>
         

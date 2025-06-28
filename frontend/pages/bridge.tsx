@@ -4,7 +4,7 @@ import Layout from '../components/common/Layout';
 import dynamic from 'next/dynamic';
 
 // Dynamic import to avoid SSR issues
-const BridgeInterface = dynamic(() => import('../components/Bridge/bridgeInterface'), {
+const BridgeInterface = dynamic(() => import('../components/Bridge/BridgeInterface'), {
   ssr: false,
   loading: () => <div style={{ textAlign: 'center', padding: '2rem' }}>Loading bridge...</div>
 });

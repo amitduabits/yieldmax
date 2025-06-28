@@ -13,12 +13,6 @@ const formatBigIntValue = (value: any, decimals: number = 18): string => {
   return formatUnits(value, decimals);
 };
 
-// Helper to safely format bigint values
-const formatBigIntValue = (value: any, decimals: number = 18): string => {
-  if (!value || typeof value !== 'bigint') return '0';
-  return formatUnits(value, decimals);
-};
-
 // Add totalSupply to VAULT_ABI
 const EXTENDED_VAULT_ABI = [
   ...VAULT_ABI,
@@ -461,7 +455,7 @@ export default function Portfolio() {
             ${userAssetValue.toFixed(2)}
           </div>
           <div className="subtext">
-            {userShares && typeof userShares === "bigint" ? Number(formatBigIntValue(userShares, 18)).toFixed(8) : "0"} ymUSDC
+            {Number(formatBigIntValue(userShares, 18)).toFixed(8)} ymUSDC
           </div>
         </StatCard>
         
@@ -527,7 +521,7 @@ export default function Portfolio() {
                 </button>
               </div>
               <div style={{ marginTop: '0.5rem', color: '#64748b', fontSize: '0.875rem' }}>
-                Available: {userBalance ? formatUnits(userBalance, 6) : '0'} USDC
+                Available: {formatBigIntValue(userBalance, 6)} USDC
               </div>
             </InputGroup>
           </div>
@@ -562,7 +556,7 @@ export default function Portfolio() {
         <div className="protocol-stats">
           <div className="stat">
             <h4>Total Value Locked</h4>
-            <p>${totalAssets ? formatBigIntValue(totalAssets, 6) : '8970'}</p>
+              <p>${formatBigIntValue(totalAssets, 6) || '8970'}</p>
           </div>
           <div className="stat">
             <h4>Strategy Confidence</h4>

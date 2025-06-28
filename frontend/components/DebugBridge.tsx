@@ -74,6 +74,18 @@ export default function DebugBridge() {
 
   const checkContract = async (name: string, address: string) => {
     try {
+      // Check if window.ethereum exists
+      if (!window.ethereum) {
+        setResults((prev: any) => ({
+          ...prev,
+          [name]: {
+            address,
+            error: 'No ethereum provider found',
+          }
+        }));
+        return;
+      }
+
       const provider = new ethers.providers.Web3Provider(window.ethereum);
       const code = await provider.getCode(address);
       const hasCode = code !== '0x';
@@ -145,7 +157,27 @@ export default function DebugBridge() {
   };
 
   const testBridgeCall = async () => {
-    if (!address || !window.ethereum) return;
+    if (!address) {
+      setResults((prev: any) => ({
+        ...prev,
+        bridgeTest: {
+          success: false,
+          error: 'No wallet connected',
+        }
+      }));
+      return;
+    }
+
+    if (!window.ethereum) {
+      setResults((prev: any) => ({
+        ...prev,
+        bridgeTest: {
+          success: false,
+          error: 'No ethereum provider found',
+        }
+      }));
+      return;
+    }
 
     try {
       const provider = new ethers.providers.Web3Provider(window.ethereum);

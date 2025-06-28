@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useAccount, useNetwork, useContractWrite, useContractRead } from 'wagmi';
 import { parseUnits, formatUnits } from 'viem';
-import { CONTRACTS, CHAIN_SELECTORS, CCIP_BRIDGE_ABI, ERC20_ABI } from '../lib/contracts/addresses';
+import { CONTRACTS, CHAIN_SELECTORS, ERC20_ABI } from '../lib/contracts/addresses';
 
 export function useCrossChain() {
   const { address } = useAccount();

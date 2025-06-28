@@ -58,7 +58,7 @@ export function useBridge() {
       
       return true;
     } catch (err) {
-      setError(err.message || 'Bridge operation failed');
+      setError((err as Error).message || 'Bridge operation failed');
       return false;
     } finally {
       setIsLoading(false);

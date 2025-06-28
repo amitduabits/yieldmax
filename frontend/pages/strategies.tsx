@@ -87,9 +87,9 @@ export default function Strategies() {
         </TabContainer>
         
         {activeTab === 'ai' ? (
-          <AIOptimization account={address} />
+          <AIOptimization account={address || null} />
         ) : (
-          <AutomationDashboard account={address} />
+          <AutomationDashboard account={address || null} />
         )}
       </PageContainer>
     </Layout>

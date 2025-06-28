@@ -95,7 +95,7 @@ export function useCrossChain() {
       if (!window.ethereum) {
         throw new Error('MetaMask is not installed');
       }
-      await window.ethereum.request({
+      await (window.ethereum as any).request({
         method: 'wallet_switchEthereumChain',
         params: [{ chainId: `0x${networkId.toString(16)}` }],
       });
@@ -103,7 +103,7 @@ export function useCrossChain() {
       if (error.code === 4902 && window.ethereum) {
         const networkConfig = getNetworkConfig(networkId);
         if (networkConfig) {
-          await window.ethereum.request({
+          await (window.ethereum as any).request({
             method: 'wallet_addEthereumChain',
             params: [networkConfig],
           });

@@ -10,36 +10,22 @@ import { configureChains, createConfig, WagmiConfig } from 'wagmi';
 import { sepolia } from 'wagmi/chains';
 import { publicProvider } from 'wagmi/providers/public';
 import { jsonRpcProvider } from 'wagmi/providers/jsonRpc';
-import { alchemyProvider } from 'wagmi/providers/alchemy';
 
 // Configure multiple RPC providers for better reliability
 const { chains, publicClient } = configureChains(
   [sepolia],
   [
-    // Try Alchemy first if key is provided
-    ...(process.env.NEXT_PUBLIC_ALCHEMY_KEY 
-      ? [alchemyProvider({ apiKey: process.env.NEXT_PUBLIC_ALCHEMY_KEY })]
-      : []
-    ),
-    
-    // Use Infura as backup
+    // Use Infura as primary
     jsonRpcProvider({
       rpc: (chain) => ({
         http: `https://sepolia.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161`,
       }),
     }),
     
-    // QuickNode public endpoint
+    // QuickNode public endpoint as backup
     jsonRpcProvider({
       rpc: (chain) => ({
         http: `https://ethereum-sepolia.publicnode.com`,
-      }),
-    }),
-    
-    // Ankr public endpoint
-    jsonRpcProvider({
-      rpc: (chain) => ({
-        http: `https://rpc.ankr.com/eth_sepolia`,
       }),
     }),
     

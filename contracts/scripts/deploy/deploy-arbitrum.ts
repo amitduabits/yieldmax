@@ -18,7 +18,7 @@ async function main() {
     throw new Error("Deployer account has no ETH. Please fund it first.");
   }
 
-  // Deploy Mock USDC for Arbitrum Sepolia
+  // Deploy Mock USDC on Arbitrum Sepolia
   console.log("\n📦 Deploying Mock USDC...");
   const MockERC20 = await ethers.getContractFactory("MockERC20");
   const usdc = await MockERC20.deploy("USD Coin", "USDC", 6);
@@ -66,12 +66,20 @@ async function main() {
   await strategyEngine.authorizeVault(vault.address);
   console.log("✅ Vault authorized in StrategyEngine");
 
-  // Set cross-chain manager in vault (if this function exists)
-  try {
-    await vault.setCrossChainManager(crossChainManager.address);
-    console.log("✅ CrossChainManager set in Vault");
-  } catch (error) {
-    console.log("⚠️  setCrossChainManager function not found in vault, skipping...");
+  // Note: YieldMaxVault doesn't have setCrossChainManager function
+  // The vault and cross-chain manager are already connected through deployment
+
+  // Configure Sepolia chain in CrossChainManager (for receiving from Sepolia)
+  const SEPOLIA_CHAIN_SELECTOR = "16015286601757825753";
+  const sepoliaDeploymentPath = path.join(__dirname, "../../deployments/sepolia.json");
+  
+  if (fs.existsSync(sepoliaDeploymentPath)) {
+    const sepoliaDeployment = JSON.parse(fs.readFileSync(sepoliaDeploymentPath, "utf8"));
+    await crossChainManager.configureChain(
+      SEPOLIA_CHAIN_SELECTOR,
+      sepoliaDeployment.contracts.vault
+    );
+    console.log("✅ Configured Sepolia chain for cross-chain operations");
   }
 
   // Save deployment addresses
@@ -110,9 +118,9 @@ async function main() {
   console.log("CrossChainManager:", crossChainManager.address);
   
   console.log("\n📝 Next steps:");
-  console.log("1. Deploy CCIP Bridge: npx hardhat run scripts/deploy/deploy-ccip-bridge.ts --network arbitrumSepolia");
-  console.log("2. Update frontend addresses");
-  console.log("3. Setup cross-chain configuration");
+  console.log("1. Update frontend/lib/contracts/addresses.ts with these addresses");
+  console.log("2. Configure cross-chain connection on Sepolia");
+  console.log("3. Fund CrossChainManager with LINK tokens for CCIP fees");
 }
 
 main()

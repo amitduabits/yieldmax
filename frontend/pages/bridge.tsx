@@ -1,28 +1,18 @@
+// frontend/pages/bridge.tsx
 import React from 'react';
-import dynamic from 'next/dynamic';
 import Layout from '../components/common/Layout';
-import { useAccount } from 'wagmi';
+import dynamic from 'next/dynamic';
 
-// Dynamic import to prevent SSR issues
-const CrossChainDashboard = dynamic(() => import('../components/CrossChain/CrossChainDashboard'), {
+// Dynamic import to avoid SSR issues
+const BridgeInterface = dynamic(() => import('../components/Bridge/bridgeInterface'), {
   ssr: false,
-  loading: () => (
-    <div style={{ 
-      textAlign: 'center', 
-      padding: '2rem',
-      color: '#94a3b8'
-    }}>
-      Loading bridge...
-    </div>
-  )
+  loading: () => <div style={{ textAlign: 'center', padding: '2rem' }}>Loading bridge...</div>
 });
 
 export default function Bridge() {
-  const { address } = useAccount();
-  
   return (
     <Layout>
-      <CrossChainDashboard account={address} />
+      <BridgeInterface />
     </Layout>
   );
 }
